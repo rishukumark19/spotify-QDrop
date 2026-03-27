@@ -9,8 +9,8 @@ Whether it's a **gym, café, office, or a house party**, QDrop bridges the gap b
 ## 🚀 Why QDrop? (Beyond Spotify Jam)
 
 > [!TIP]
-> **v1.2 Update: Power Sync & Host Tools!**
-> We've just upgraded QDrop's **Listen Along** mode to v1.2. Now, hosts can **Force Resync** all listeners with one click, guests can choose their own **Spotify Device** to sync to, and real-time **Listener Stats** (Synced vs. Control-only) are visible in the room header.
+> **v1.3 Update: The Guest UX Overhaul!**
+> We've completely redesigned the guest journey. No more settings—just one clean choice upon entry: **"Add Songs Only"** or **"Listen on my Spotify"**. Hosts now get a dedicated, collapsible **Admin Console** for "Listen Along" management, listener limits, and room type presets.
 
 While Spotify Jam is great for small groups of friends with Premium accounts, QDrop is built for **venues and public spaces**.
 
@@ -66,15 +66,13 @@ QDrop is a production-minded project with a single-repo, multi-package feel.
 ---
 
 ## 🛤️ Roadmap: Moving Beyond the "Control Wrapper"
-- [x] **Listen Along Sync (v1.1)**: Real-time playback synchronization for remote listeners.
-- [x] **Guest Device Picker (v1.2)**: Allow guests to choose their sync device (phone, browser, or desktop).
-- [x] **Advanced Listener Stats (v1.2)**: Real-time count of "Synced" vs "Control-only" guests in the room header.
-- [x] **Host "Hard Sync" (v1.2)**: A dedicated button to force a resync across all remote listeners.
-- [ ] **Smart Fairness Queue**: Round-robin weighting so everyone gets a turn automatically.
-- [ ] **Live Voting Bar**: Songs float up/down based on guest votes.
-- [ ] **Vibe Meter**: Visual energy/danceability metrics of the current queue.
-- [ ] **Room Presets**: Quick-start modes for "Physical Venue" vs "Remote DJ Session".
-- [ ] **Scheduled Sessions**: Set a room to go live at a future time.
+- [x] **Opinionated Join Flow (v1.3)**: Simplifies the guest entry by branching between "Control" and "Listen Along" modes.
+- [x] **Host Admin Console (v1.3)**: A collapsible, high-level dashboard for managing room limits, types, and power tools.
+- [x] **Guest Device Picker (v1.2)**: Allow guests to choosing their sync device (phone, browser, or desktop).
+- [x] **Force Resync (v1.2)**: A broadcast button to pull all remote listeners back to the host's play cursor.
+- [ ] **Smart Fairness Queue**: Automatic round-robin weighting to prevent a single guest from hijacking the queue.
+- [ ] **Live Vibe Meter**: Visual energy/danceability metrics of the current room state.
+- [ ] **Scheduled Session Presets**: Set a room to automatically start at a future date (e.g., "Friday Night Jam").
 
 ---
 

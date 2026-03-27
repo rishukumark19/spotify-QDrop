@@ -29,6 +29,12 @@ import { useRoomWebSocket } from "@/hooks/use-websocket";
 import { toast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown, ShieldCheck } from "lucide-react";
 
 function sanitizeRoomCode(value?: string) {
   return (value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
@@ -293,16 +299,18 @@ export default function Host() {
         <div className="flex items-center justify-between">
           <button onClick={() => navigate("/")} className="text-muted-foreground hover:text-foreground transition-colors"><ArrowLeft className="w-5 h-5" /></button>
           <div className="text-center">
-            <h1 className="text-sm font-semibold">{roomData.name}</h1>
+            <h1 className="text-xs font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Host Console</h1>
             <div className="flex flex-col items-center">
-              <div className="flex items-center justify-center gap-1.5">
-                <p className="text-xs text-primary font-medium">Host View</p>
-                {roomData.mode === "listen_along" && <span className="flex items-center gap-1 text-[10px] text-primary/70"><Headphones className="w-3 h-3" />Listen Along</span>}
-                {roomData.hasSpotify && <span className="flex items-center gap-1 text-[10px] text-primary/70">{playerReady ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}{playerReady ? "Connected" : "Connecting..."}</span>}
+              <h2 className="text-sm font-semibold text-foreground leading-tight">{roomData.name}</h2>
+              <div className="flex items-center justify-center gap-1 mt-0.5">
+                <span className="text-[9px] font-bold text-primary font-mono bg-primary/10 px-1.5 py-0.5 rounded leading-none">
+                  {code}
+                </span>
+                <span className="w-1 h-1 rounded-full bg-border" />
+                <p className="text-[9px] text-muted-foreground leading-none">
+                  {listenerStats.synced} listeners • {listenerStats.controlOnly} guests
+                </p>
               </div>
-              <p className="text-[9px] text-muted-foreground mt-0.5">
-                {listenerStats.synced} in sync • {listenerStats.controlOnly} control-only
-              </p>
             </div>
           </div>
           <div className="w-5" />
@@ -358,61 +366,93 @@ export default function Host() {
             <div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{queue.length > 0 ? "Ready to play" : "Waiting for songs..."}</p>{queue.length > 0 && <Button onClick={() => playSong.mutate()} className="rounded-full">Play</Button>}</div>
           )}
         </div>
-
-        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
-          <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Settings className="w-4 h-4 text-muted-foreground" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Room Settings</span>
-            </div>
-          </div>
-          
-          <div className="divide-y divide-border">
-            <div className="p-4 flex items-center justify-between">
-              <div className="flex flex-col gap-0.5">
-                <Label htmlFor="host-listen-along" className="text-sm font-semibold flex items-center gap-2">
-                  <Headphones className="w-4 h-4 text-primary" /> Listen Along Mode
-                </Label>
-                <p className="text-[10px] text-muted-foreground">Guests can sync their playback to yours</p>
-              </div>
-              <Switch 
-                id="host-listen-along" 
-                checked={roomData.mode === "listen_along"} 
-                onCheckedChange={(checked) => updateMode.mutate({ mode: checked ? "listen_along" : "default", listenAlongEnabled: checked })} 
-                disabled={updateMode.isPending} 
-              />
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold">Room Type</Label>
-                <select 
-                  className="bg-muted border-none rounded-md px-2 py-1 text-xs outline-none"
-                  value={roomData.roomType}
-                  onChange={(e) => updateSettings.mutate({ roomType: e.target.value })}
-                >
-                  <option value="in_room">In-Room Speaker Only</option>
-                  <option value="remote_listen_along">Remote Listen Along</option>
-                  <option value="scheduled">Scheduled Session</option>
-                </select>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold">Max Listeners</Label>
-                <div className="flex items-center gap-2">
-                  <Input 
-                    type="number" 
-                    className="w-16 h-8 text-xs bg-muted border-none text-center"
-                    placeholder="25"
-                    defaultValue={roomData.maxListeners || 25}
-                    onBlur={(e) => updateSettings.mutate({ maxListeners: parseInt(e.target.value) })}
-                  />
-                  <span className="text-[10px] text-muted-foreground">users</span>
+        <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+          <Collapsible>
+            <CollapsibleTrigger className="w-full px-4 py-3 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between group">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4 text-primary" />
+                </div>
+                <div className="text-left">
+                  <p className="text-xs font-bold text-foreground">Admin & Power Tools</p>
+                  <p className="text-[10px] text-muted-foreground">Manage listeners, sync, and limits</p>
                 </div>
               </div>
-            </div>
-          </div>
+              <ChevronDown className="w-4 h-4 text-muted-foreground group-data-[state=open]:rotate-180 transition-transform" />
+            </CollapsibleTrigger>
+            
+            <CollapsibleContent className="divide-y divide-border/50 border-t border-border/50">
+              {/* Force Resync (Broadcaster) */}
+              <div className="p-4 flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <Label className="text-xs font-bold">Hard Re-Sync</Label>
+                  <p className="text-[10px] text-muted-foreground">Forces all listeners to jump to your current spot.</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 text-[10px] font-bold rounded-full gap-1.5 px-3 border-primary/20 text-primary hover:bg-primary/5"
+                  onClick={() => forceResync.mutate()}
+                  disabled={forceResync.isPending || !nowPlaying}
+                >
+                  <RotateCcw className="w-3 h-3" /> Broadcast Seek
+                </Button>
+              </div>
+
+              {/* Listen Along Toggle */}
+              <div className="p-4 flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <Label htmlFor="host-listen-along" className="text-xs font-bold">
+                    Allow Listen Along
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground">Guests can join your playback stream via Spotify.</p>
+                </div>
+                <Switch 
+                  id="host-listen-along" 
+                  checked={roomData.mode === "listen_along"} 
+                  onCheckedChange={(checked) => updateMode.mutate({ mode: checked ? "listen_along" : "default", listenAlongEnabled: checked })} 
+                  disabled={updateMode.isPending} 
+                />
+              </div>
+
+              {/* Advanced Settings */}
+              <div className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Global Constraints</Label>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium">Room Type</span>
+                    <select 
+                      className="bg-muted border border-border rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary transition-all pr-8 appearance-none cursor-pointer"
+                      value={roomData.roomType}
+                      onChange={(e) => updateSettings.mutate({ roomType: e.target.value })}
+                    >
+                      <option value="in_room">🔊 In-Room (Speaker only)</option>
+                      <option value="remote_listen_along">🌍 Remote Jam (Listen Along)</option>
+                      <option value="scheduled">⏱ Scheduled Session</option>
+                    </select>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium">Max Listener Count</span>
+                    <div className="flex items-center gap-2">
+                      <Input 
+                        type="number" 
+                        min="1"
+                        max="100"
+                        className="w-16 h-8 text-xs bg-muted border-border text-center rounded-lg"
+                        placeholder="25"
+                        value={roomData.maxListeners || 25}
+                        onChange={(e) => updateSettings.mutate({ maxListeners: parseInt(e.target.value) || 25 })}
+                      />
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase">Users</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
+
 
         <div>
           <div className="flex items-center gap-2 mb-3"><ListMusic className="w-4 h-4 text-muted-foreground" /><h2 className="text-sm font-semibold">Queue</h2><span className="text-xs text-muted-foreground">{queue.length} songs</span></div>

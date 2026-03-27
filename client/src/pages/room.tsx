@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   X,
   Headphones,
+  Settings,
 } from "lucide-react";
 import type { QueueEntry } from "@shared/schema";
 import { AppFooter } from "@/components/AppFooter";
@@ -23,14 +24,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { 
-  Tablet, 
-  Monitor, 
-  Smartphone, 
+import {
+  Tablet,
+  Monitor,
+  Smartphone,
   Volume2,
   CheckCircle2,
   RotateCcw
 } from "lucide-react";
+import { AboutOverlay } from "@/components/AboutOverlay";
 
 function sanitizeRoomCode(value?: string) {
   return (value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
@@ -91,6 +93,7 @@ export default function Room() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [guestToken, setGuestToken] = useState<string | null>(localStorage.getItem(`spotify_token_${code}`));
+  const [joinMode, setJoinMode] = useState<"control" | "listen" | null>(null);
   const [isSynced, setIsSynced] = useState(false);
   const lastSyncRef = useRef<number>(0);
 
@@ -103,13 +106,15 @@ export default function Room() {
     if (token) {
       setGuestToken(token);
       localStorage.setItem(`spotify_token_${code}`, token);
+      setJoinMode("listen");
       // Clean URL: Keep the hash path but remove params
       const cleanHash = hash.split("?")[0];
       window.history.replaceState(null, "", cleanHash);
+    } else if (guestToken) {
+      setJoinMode("listen");
     }
-  }, [code]);
+  }, [code, guestToken]);
 
-  const [nowPlayingMs, setNowPlayingMs] = useState<number>(0);
   const [listenerStats, setListenerStats] = useState({ synced: 0, controlOnly: 0 });
   const [availableDevices, setAvailableDevices] = useState<any[]>([]);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
@@ -121,18 +126,18 @@ export default function Room() {
       queryClient.invalidateQueries({ queryKey: ["/api/rooms", code, "queue"] });
     } else if (data.type === "heartbeat") {
       if (data.stats) setListenerStats(data.stats);
-      
-      if (guestToken && data.isPlaying) {
+
+      if (guestToken && data.isPlaying && joinMode === "listen") {
         const now = Date.now();
-        // Sync every 10s or if specifically requested
-        if (now - lastSyncRef.current > 10000) {
+        // Sync every 5s for better real-time feel
+        if (now - lastSyncRef.current > 5000) {
           syncToHost(data.trackId, data.expectedPositionMs);
           lastSyncRef.current = now;
         }
       }
     } else if (data.type === "stats") {
       setListenerStats({ synced: data.synced, controlOnly: data.controlOnly });
-    } else if (data.type === "resync" && guestToken) {
+    } else if (data.type === "resync" && guestToken && joinMode === "listen") {
       syncToHost(data.trackId, data.expectedPositionMs, true);
     }
   });
@@ -162,19 +167,21 @@ export default function Room() {
   };
 
   useEffect(() => {
-    if (guestToken) {
+    if (guestToken && joinMode === "listen") {
       fetchDevices();
       reportStatus("synced");
+    } else if (joinMode === "control") {
+      reportStatus("control_only");
     }
-  }, [guestToken]);
+  }, [guestToken, joinMode]);
 
   const syncToHost = async (trackId: string, positionMs: number, force = false) => {
-    if (!guestToken) return;
+    if (!guestToken || joinMode !== "listen") return;
     try {
       const res = await fetch("https://api.spotify.com/v1/me/player", {
         headers: { Authorization: `Bearer ${guestToken}` },
       });
-      
+
       if (res.status === 401) {
         setGuestToken(null);
         localStorage.removeItem(`spotify_token_${code}`);
@@ -184,7 +191,7 @@ export default function Room() {
 
       if (res.status === 204) {
         reportStatus("control_only");
-        return; 
+        return;
       }
 
       const data = await res.json();
@@ -196,7 +203,7 @@ export default function Room() {
 
       if (currentTrackId !== trackId || drift > 3000 || force) {
         reportStatus("catching_up", deviceId, deviceName);
-        
+
         const playRes = await fetch("https://api.spotify.com/v1/me/player/play" + (deviceId ? `?device_id=${deviceId}` : ""), {
           method: "PUT",
           headers: { Authorization: `Bearer ${guestToken}`, "Content-Type": "application/json" },
@@ -223,7 +230,6 @@ export default function Room() {
   const selectDevice = async (deviceId: string) => {
     if (!guestToken) return;
     try {
-      // Transfer playback to this device
       const res = await fetch("https://api.spotify.com/v1/me/player", {
         method: "PUT",
         headers: { Authorization: `Bearer ${guestToken}`, "Content-Type": "application/json" },
@@ -231,8 +237,7 @@ export default function Room() {
       });
       if (res.ok) {
         setShowDevicePicker(false);
-        // Force resync after 2 seconds
-        setTimeout(() => syncToHost(nowPlaying?.spotifyUri || "", 0, true), 2000);
+        setTimeout(() => syncToHost(nowPlaying?.spotifyUri || "", 0, true), 1000);
       }
     } catch (err) {
       console.error("Device select error:", err);
@@ -246,6 +251,14 @@ export default function Room() {
       case "tablet": return <Tablet className="w-4 h-4" />;
       default: return <Volume2 className="w-4 h-4" />;
     }
+  };
+
+  const connectSpotify = async () => {
+    try {
+      const res = await apiRequest("GET", `/api/spotify/auth?room=${code}&guest=true`);
+      const { authUrl } = await res.json();
+      window.location.href = authUrl;
+    } catch (err) { console.error("Guest auth failed", err); }
   };
 
   const roomQuery = useQuery<{
@@ -352,6 +365,59 @@ export default function Room() {
     );
   }
 
+  // Phase 1: Join Choice Screen
+  if (!joinMode && joinMode !== "control") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="px-4 py-8 text-center pt-20">
+          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-6 shadow-xl shadow-primary/20">
+            <Music className="w-8 h-8 text-primary-foreground" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Welcome to {roomData.name}</h1>
+          <p className="text-sm text-muted-foreground mt-2 max-w-[280px] mx-auto">Choose how you'd like to join the session.</p>
+        </header>
+
+        <main className="flex-1 px-6 space-y-4 max-w-sm mx-auto w-full">
+          <button
+            onClick={() => setJoinMode("control")}
+            className="w-full bg-card hover:bg-muted border border-border p-6 rounded-3xl text-left transition-all active:scale-[0.98] group"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+              <Plus className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold">Add Songs Only</h2>
+            <p className="text-sm text-muted-foreground mt-1 leading-relaxed">Join the queue and drop tracks. No Spotify account needed.</p>
+          </button>
+
+          {roomData.listenAlongEnabled && (
+            <button
+              onClick={() => {
+                if (guestToken) setJoinMode("listen");
+                else connectSpotify();
+              }}
+              className="w-full bg-card hover:bg-muted border border-border p-6 rounded-3xl text-left transition-all active:scale-[0.98] group"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                <Headphones className="w-6 h-6" />
+              </div>
+              <h2 className="text-lg font-bold">Listen on my Spotify</h2>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">Hear the host's playback in sync on your own device.</p>
+            </button>
+          )}
+
+          <div className="pt-8 text-center">
+            <AboutOverlay />
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-2">Learn how QDrop works</p>
+          </div>
+        </main>
+
+        <div className="pb-8">
+          <AppFooter />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-lg mx-auto">
       {/* Header */}
@@ -363,20 +429,51 @@ export default function Room() {
           <div className="text-center">
             <h1 className="text-sm font-semibold text-foreground">{roomData.name}</h1>
             <div className="flex flex-col items-center">
-              <div className="flex items-center justify-center gap-1.5">
-                <p className="text-xs text-muted-foreground font-mono">{code}</p>
-                {roomData.hasSpotify && (
-                  <span className="text-[10px] text-primary font-medium px-1.5 py-0.5 bg-primary/10 rounded">Spotify</span>
-                )}
+              <div className="flex items-center justify-center gap-1.5 leading-none">
+                <p className="text-[10px] text-muted-foreground font-mono">{code}</p>
+                <span className="w-1 h-1 rounded-full bg-border" />
+                <p className="text-[10px] font-bold text-primary tracking-tight">
+                  {joinMode === "listen" ? "Listening on Spotify" : "Add Songs Only"}
+                </p>
               </div>
-              <p className="text-[9px] text-muted-foreground mt-0.5">
-                {listenerStats.synced} in sync • {listenerStats.controlOnly} control-only
+              <p className="text-[9px] text-muted-foreground mt-1">
+                {joinMode === "listen"
+                  ? "You're hearing exactly what the host plays."
+                  : "Audio is on host's speakers."}
               </p>
             </div>
           </div>
-          <div className="w-5" />
+          <AboutOverlay />
         </div>
       </header>
+
+      {/* Mode Status Pill / Toggle (Floating) */}
+      {roomData.listenAlongEnabled && (
+        <div className="px-4 pt-3">
+          <div className="bg-card/40 border border-border/50 rounded-2xl p-2 px-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-full bg-primary/10 text-primary">
+                {joinMode === "listen" ? <Headphones className="w-3 h-3" /> : <Music className="w-3 h-3" />}
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-tight">
+                {joinMode === "listen" ? "Listen Mode" : "Control Mode"}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[9px] font-bold rounded-full hover:bg-primary/10 uppercase tracking-tighter"
+              onClick={() => {
+                if (joinMode === "listen") setJoinMode("control");
+                else if (guestToken) setJoinMode("listen");
+                else connectSpotify();
+              }}
+            >
+              Switch Mode
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Now Playing */}
       <div className="px-4 py-4 border-b border-border">
@@ -386,73 +483,73 @@ export default function Room() {
               {nowPlaying ? <SoundBars /> : <Music className="w-4 h-4 text-muted-foreground" />}
               <span className="text-xs font-medium text-primary uppercase tracking-wider">{nowPlaying ? "Now Playing" : "Nothing Playing"}</span>
             </div>
-            {guestToken && (
-              <Dialog open={showDevicePicker} onOpenChange={setShowDevicePicker}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 text-[10px] gap-1 px-2 rounded-full" onClick={fetchDevices}>
-                    <Smartphone className="w-3 h-3" /> Device
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-[320px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl">
-                  <div className="p-4 bg-background border-b border-border flex items-center justify-between">
-                    <h2 className="font-bold text-sm tracking-tight text-foreground">Select Output Device</h2>
-                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full" onClick={() => setShowDevicePicker(false)}>
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <div className="p-2 max-h-[360px] overflow-y-auto">
-                    {availableDevices.length > 0 ? (
-                      <div className="space-y-1">
-                        {availableDevices.map((d) => (
-                          <button
-                            key={d.id}
-                            onClick={() => selectDevice(d.id)}
-                            className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${d.is_active ? 'bg-primary/10 border border-primary/20 shadow-sm' : 'hover:bg-muted border border-transparent'}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`p-2 rounded-lg ${d.is_active ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                                {getDeviceIcon(d.type)}
-                              </div>
-                              <div>
-                                <p className="text-xs font-bold tracking-tight">{d.name}</p>
-                                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                  {d.is_active ? (
-                                    <>
-                                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                      Current Device
-                                    </>
-                                  ) : (
-                                    "Connect to sync"
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                            {d.is_active && <CheckCircle2 className="w-4 h-4 text-primary" />}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="py-12 text-center px-6">
-                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4 opacity-50">
-                          <Volume2 className="w-6 h-6 text-muted-foreground" />
-                        </div>
-                        <p className="text-[11px] font-bold text-foreground">No active devices found</p>
-                        <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
-                          Open Spotify on any device (phone, laptop, speaker) and start playing a song to see it here.
-                        </p>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="mt-6 rounded-full text-[10px] h-8 px-4"
-                          onClick={fetchDevices}
-                        >
-                          Scan Again
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
+            {joinMode === "listen" && guestToken && (
+               <Dialog open={showDevicePicker} onOpenChange={setShowDevicePicker}>
+               <DialogTrigger asChild>
+                 <Button variant="ghost" size="sm" className="h-7 text-[10px] gap-1 px-2 rounded-full font-bold" onClick={fetchDevices}>
+                   <Smartphone className="w-3 h-3" /> Tap to change device
+                 </Button>
+               </DialogTrigger>
+               <DialogContent className="max-w-[320px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+                 <div className="p-4 bg-background border-b border-border flex items-center justify-between">
+                   <h2 className="font-bold text-sm tracking-tight text-foreground">Where are you listening?</h2>
+                   <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full" onClick={() => setShowDevicePicker(false)}>
+                     <X className="w-4 h-4" />
+                   </Button>
+                 </div>
+                 <div className="p-2 max-h-[360px] overflow-y-auto">
+                   {availableDevices.length > 0 ? (
+                     <div className="space-y-1">
+                       {availableDevices.map((d) => (
+                         <button
+                           key={d.id}
+                           onClick={() => selectDevice(d.id)}
+                           className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${d.is_active ? 'bg-primary/10 border border-primary/20 shadow-sm' : 'hover:bg-muted border border-transparent'}`}
+                         >
+                           <div className="flex items-center gap-3">
+                             <div className={`p-2 rounded-lg ${d.is_active ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                               {getDeviceIcon(d.type)}
+                             </div>
+                             <div>
+                               <p className="text-xs font-bold tracking-tight">{d.name}</p>
+                               <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                 {d.is_active ? (
+                                   <>
+                                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                     Active Device
+                                   </>
+                                 ) : (
+                                   "Tap to connect"
+                                 )}
+                               </p>
+                             </div>
+                           </div>
+                           {d.is_active && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                         </button>
+                       ))}
+                     </div>
+                   ) : (
+                     <div className="py-12 text-center px-6">
+                       <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4 opacity-50">
+                         <Volume2 className="w-6 h-6 text-muted-foreground" />
+                       </div>
+                       <p className="text-[11px] font-bold text-foreground">No Spotify Devices Found</p>
+                       <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                         Open Spotify on your phone, laptop, or speaker to sync audio.
+                       </p>
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         className="mt-6 rounded-full text-[10px] h-8 px-4 font-bold"
+                         onClick={fetchDevices}
+                       >
+                         Refresh Devices
+                       </Button>
+                     </div>
+                   )}
+                 </div>
+               </DialogContent>
+             </Dialog>
             )}
           </div>
 
@@ -468,19 +565,19 @@ export default function Room() {
                   <span className="text-[10px] text-muted-foreground font-mono bg-muted/50 px-1.5 py-0.5 rounded shrink-0">{nowPlaying.duration}</span>
                 )}
               </div>
-              
-              {guestToken && (
+
+              {joinMode === "listen" && guestToken && (
                 <div className="pt-3 mt-1 border-t border-border/50 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className={`p-1.5 rounded-full ${isSynced ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'}`}>
                       <Headphones className="w-3.5 h-3.5" />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Sync Health</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Audio Sync</span>
                       <div className="flex items-center gap-1.5">
                         {isSynced ? (
                           <span className="text-[10px] text-green-500 font-bold flex items-center gap-1">
-                            Live Sync Active
+                            Aligned with Host
                           </span>
                         ) : (
                           <span className="text-[10px] text-amber-500 font-bold flex items-center gap-1">
@@ -490,9 +587,9 @@ export default function Room() {
                       </div>
                     </div>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-8 rounded-full text-[10px] gap-1.5 hover:bg-muted font-bold"
                     onClick={() => syncToHost(nowPlaying?.spotifyUri || "", 0, true)}
                   >
