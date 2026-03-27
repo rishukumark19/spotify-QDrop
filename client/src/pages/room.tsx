@@ -30,7 +30,8 @@ import {
   Smartphone,
   Volume2,
   CheckCircle2,
-  RotateCcw
+  RotateCcw,
+  Speaker,
 } from "lucide-react";
 import { AboutOverlay } from "@/components/AboutOverlay";
 
@@ -366,61 +367,79 @@ export default function Room() {
   }
 
   // Phase 1: Join Choice Screen
-  if (!joinMode && joinMode !== "control") {
+  if (!joinMode) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <header className="px-4 py-8 text-center pt-20">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-6 shadow-xl shadow-primary/20">
-            <Music className="w-8 h-8 text-primary-foreground" />
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_bottom,transparent_0%,rgba(0,0,0,0.4)_100%)] pointer-events-none" />
+        
+        {/* Floating Info Pill */}
+        <div className="absolute top-6 right-6 z-50">
+          <AboutOverlay />
+        </div>
+
+        <header className="text-center mb-12 w-full animate-in fade-in slide-in-from-top-4 duration-500 relative z-10">
+          <div className="w-24 h-24 rounded-[2rem] bg-primary flex items-center justify-center mx-auto mb-6 shadow-[0_20px_50px_rgba(29,185,84,0.3)] rotate-3 hover:rotate-0 transition-transform duration-500">
+            <Music className="w-12 h-12 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">Welcome to {roomData.name}</h1>
-          <p className="text-sm text-muted-foreground mt-2 max-w-[280px] mx-auto">Choose how you'd like to join the session.</p>
+          <h1 className="text-3xl font-black text-foreground tracking-tighter leading-none mb-2">Welcome to {roomData.name}</h1>
+          <div className="flex items-center justify-center gap-3">
+            <span className="px-3 py-1 bg-card border border-border/50 text-muted-foreground rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
+              Code: <span className="text-primary">{code}</span>
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            <span className="text-[10px] items-center font-black uppercase tracking-widest text-muted-foreground/60">Live Party</span>
+          </div>
         </header>
 
-        <main className="flex-1 px-6 space-y-4 max-w-sm mx-auto w-full">
-          <button
+        {/* Main Grid: Priority Choices with Vibrant Cards */}
+        <div className="grid gap-6 w-full max-w-[400px] relative z-10 px-2">
+          <button 
             onClick={() => setJoinMode("control")}
-            className="w-full bg-card hover:bg-muted border-2 border-primary/20 p-6 rounded-3xl text-left transition-all active:scale-[0.98] group shadow-xl"
+            className="group relative overflow-hidden bg-gradient-to-br from-card to-card/50 backdrop-blur-md p-8 rounded-[2.5rem] border-2 border-border/10 text-left transition-all hover:scale-[1.02] active:scale-[0.98] hover:border-primary/40 shadow-xl"
           >
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-all shrink-0">
-                <Music className="w-8 h-8" />
+            {/* Background Glow */}
+            <div className="absolute -right-4 -top-4 w-32 h-32 bg-primary/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+            
+            <div className="flex flex-col gap-6 relative z-10">
+              <div className="w-16 h-16 rounded-3xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300 shadow-inner">
+                <Speaker className="w-8 h-8" />
               </div>
-              <div>
-                <h2 className="text-xl font-bold">Use Host Speakers</h2>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Add tracks to the room. No login needed.</p>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-black tracking-tighter text-foreground leading-tight">Use Host Speakers</h2>
+                <p className="text-sm font-medium text-muted-foreground leading-relaxed">
+                  Join the room and add songs to the physical speakers. <span className="text-primary/80 font-bold italic">Fast & No Login.</span>
+                </p>
               </div>
             </div>
           </button>
 
-          {roomData.listenAlongEnabled && (
-            <button
-              onClick={() => {
-                if (guestToken) setJoinMode("listen");
-                else connectSpotify();
-              }}
-              className="w-full bg-primary/5 border-2 border-primary/40 p-6 rounded-3xl text-left transition-all active:scale-[0.98] group shadow-2xl hover:bg-primary/10"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
-                  <Headphones className="w-8 h-8" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-primary">Listen on my Spotify</h2>
-                  <p className="text-xs text-primary/60 mt-1 leading-relaxed font-medium">Away? Sync audio directly to your device.</p>
-                </div>
-              </div>
-            </button>
-          )}
-
-          <div className="pt-8 text-center">
-            <AboutOverlay />
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-2">Learn how QDrop works</p>
+          <div className="relative flex items-center justify-center py-2">
+            <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+            <span className="absolute bg-background px-4 text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/40">Remote?</span>
           </div>
-        </main>
 
-        <div className="pb-8">
-          <AppFooter />
+          <button 
+            onClick={connectSpotify}
+            className="group relative overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5 backdrop-blur-md p-8 rounded-[2.5rem] border-2 border-primary/30 text-left transition-all hover:scale-[1.02] active:scale-[0.98] hover:border-primary/60 shadow-lg shadow-primary/5"
+          >
+            <div className="absolute -right-4 -top-4 w-32 h-32 bg-primary/20 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+            
+            <div className="flex flex-col gap-6 relative z-10">
+              <div className="w-16 h-16 rounded-3xl bg-primary text-primary-foreground flex items-center justify-center group-hover:rotate-12 transition-transform shadow-xl shadow-primary/40">
+                <Headphones className="w-8 h-8" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-black tracking-tighter text-primary leading-tight">Listen Along</h2>
+                <p className="text-sm font-medium text-primary/70 leading-relaxed">
+                  Streaming audio to your own phone. Requires <span className="font-bold underline decoration-primary/30 text-primary">Spotify login</span> to keep everything in sync.
+                </p>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <div className="mt-12 opacity-40 hover:opacity-100 transition-opacity cursor-default relative z-10">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-[0.3em] font-black">QDrop Guest Portal</p>
         </div>
       </div>
     );

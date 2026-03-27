@@ -9,8 +9,11 @@ Whether it's a **gym, café, office, or a house party**, QDrop bridges the gap b
 ## 🚀 Why QDrop? (Beyond Spotify Jam)
 
 > [!TIP]
-> **v1.3 Update: The Guest-First Overhaul!**
-> QDrop is now prioritized for joiners. The Home page defaults to **Join Room**, and guests now choose their own experience: **"Use Host Speakers"** (no Spotify login needed) or **"Listen on my Spotify"** (personal device sync). Host setup is simplified into **In-Room Speaker** or **Remote Jam** presets.
+> **v1.4 Update: The Vibrant Guest-First Overhaul!**
+> QDrop has been redesigned for maximum visual energy and zero-friction guest entry. 
+> - **Situational Join**: Guests now branch into **"Use Host Speakers"** (No login, pure local queueing) or **"Listen on my Spotify"** (Personal sync).
+> - **Host Persistence**: Recent host sessions are now remembered for quick one-tap room re-entry.
+> - **Vibrant UI**: Restored high-energy "Spotify-green" accents, neon-glow shadows, and premium interactive gradients.
 
 While Spotify Jam is great for small groups of friends with Premium accounts, QDrop is built for **venues and public spaces**.
 

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Music, Plus, LogIn, Dumbbell, Headphones } from "lucide-react";
+import { Music, Plus, LogIn, Dumbbell, Headphones, ShieldCheck } from "lucide-react";
 import { AppFooter } from "@/components/AppFooter";
 
 const aboutCards = [
@@ -37,9 +37,13 @@ export default function Home() {
       return res.json();
     },
     onSuccess: (data) => {
+      // Store this room as the recent host session
+      localStorage.setItem("qdrop_last_host_room", data.code);
       navigate(`/host/${data.code}`);
     },
   });
+
+  const lastHostRoom = localStorage.getItem("qdrop_last_host_room");
 
   const handleJoin = () => {
     const code = joinCode.trim().toUpperCase();
@@ -143,21 +147,33 @@ export default function Home() {
                 <LogIn className="w-5 h-5 mr-3" />
                 Join the Party
               </Button>
-              <p className="text-[10px] text-muted-foreground text-center px-4 uppercase tracking-tighter">
-                Ask the host for the room code or scan their QR.
+              <p className="text-[10px] text-muted-foreground/60 text-center px-4 uppercase tracking-[0.1em] font-bold">
+                Ask the host for the code or scan the QR.
               </p>
             </div>
           ) : (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="bg-card/50 p-6 rounded-3xl border border-border">
+              {lastHostRoom && (
+                <button 
+                  onClick={() => navigate(`/host/${lastHostRoom}`)}
+                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-primary/5 border border-primary/20 text-xs text-primary font-bold hover:bg-primary/10 transition-colors mb-2"
+                >
+                  <span className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4" />
+                    Enter Last Active Room
+                  </span>
+                  <span className="font-mono bg-primary/10 px-2 py-0.5 rounded uppercase">{lastHostRoom}</span>
+                </button>
+              )}
+              <div className="bg-card/50 p-6 rounded-3xl border border-border shadow-sm">
                 <label className="block text-[10px] text-center font-bold text-muted-foreground uppercase tracking-[0.2em] mb-4">
                   Room Name
                 </label>
                 <Input
-                  placeholder="e.g. Gym Beats 🏋️"
+                  placeholder="e.g. Gym Beats 🏋️, Club Night 🌙, House Party 🏠"
                   value={roomName}
                   onChange={(e) => setRoomName(e.target.value)}
-                  className="bg-black/20 border-border h-14 text-foreground placeholder:text-primary/40 text-center text-sm font-medium rounded-2xl focus:ring-primary/40 focus:border-primary/60 transition-all"
+                  className="bg-black/20 border-border h-14 text-foreground placeholder:text-muted-foreground/40 text-center text-sm font-semibold rounded-2xl focus:ring-primary/40 focus:border-primary/60 transition-all border-dashed"
                   maxLength={50}
                   data-testid="input-room-name"
                 />
