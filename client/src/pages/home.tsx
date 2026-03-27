@@ -143,8 +143,8 @@ export default function Home() {
                 <LogIn className="w-4 h-4 mr-2" />
                 Join the Party
               </Button>
-              <p className="text-xs text-muted-foreground text-center px-4">
-                Ask the host for their 5-letter code or scan their QR code.
+              <p className="text-[10px] text-muted-foreground text-center px-4 uppercase tracking-tighter">
+                Ask the host for the room code or scan their QR.
               </p>
             </div>
           ) : (
@@ -192,10 +192,10 @@ export default function Home() {
                       <span className="text-[10px] font-bold uppercase tracking-tighter">Remote Jam</span>
                     </button>
                   </div>
-                  <p className="text-[10px] text-center text-muted-foreground mt-1 px-2 italic">
+                  <p className="text-[10px] text-center text-muted-foreground mt-1 px-2 italic leading-tight">
                     {preset === "speaker" 
-                      ? "Standard mode. Everyone hears the main speaker." 
-                      : "Listen Along enabled. Guests can sync to their own apps."}
+                      ? "Guests add songs; music plays on a shared speaker." 
+                      : "You’re the DJ; friends join from anywhere and listen on their own Spotify."}
                   </p>
                 </div>
               </div>

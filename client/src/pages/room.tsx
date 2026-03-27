@@ -387,8 +387,8 @@ export default function Room() {
                 <Music className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-lg font-bold">In the Room</h2>
-                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Hear it on the main speakers. Just add tracks.</p>
+                <h2 className="text-lg font-bold">Use Host Speakers</h2>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Add songs to the shared queue. No Spotify login needed.</p>
               </div>
             </div>
           </button>
@@ -406,8 +406,8 @@ export default function Room() {
                   <Headphones className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold">Listen Remotely</h2>
-                  <p className="text-xs text-background/60 mt-0.5 leading-relaxed">I'm away. Sync music directly to my Spotify.</p>
+                  <h2 className="text-lg font-bold">Listen on my Spotify</h2>
+                  <p className="text-xs text-background/60 mt-0.5 leading-relaxed">I'm away. Sync music and add track from anywhere.</p>
                 </div>
               </div>
             </button>
