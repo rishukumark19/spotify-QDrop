@@ -48,8 +48,8 @@ function formatMs(ms: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-// WebSocket room subscriptions
-const roomSubscriptions = new Map<string, Set<WebSocket>>();
+// WebSocket room subscriptions (using socket IDs)
+const roomSubscriptions = new Map<string, Map<string, WebSocket>>();
 
 function broadcastToRoom(roomCode: string, data: object) {
   const subs = roomSubscriptions.get(roomCode);
@@ -69,18 +69,29 @@ setInterval(async () => {
 
     try {
       const room = await storage.getRoomByCode(roomCode);
-      if (!room || !room.listenAlongEnabled || !room.isPlaying) continue;
+      if (!room || !room.listenAlongEnabled || !room.isPlaying) {
+        // Still send stats even if not playing
+        const stats = await storage.getListenerStats(roomCode);
+        broadcastToRoom(roomCode, { type: "stats", ...stats });
+        continue;
+      }
 
       const current = await storage.getNowPlaying(roomCode);
-      if (!current || !current.startedAt || !current.spotifyUri) continue;
+      if (!current || !current.startedAt || !current.spotifyUri) {
+        const stats = await storage.getListenerStats(roomCode);
+        broadcastToRoom(roomCode, { type: "stats", ...stats });
+        continue;
+      }
 
       const positionMs = current.initialPositionMs! + (Date.now() - current.startedAt.getTime());
+      const stats = await storage.getListenerStats(roomCode);
 
       broadcastToRoom(roomCode, {
         type: "heartbeat",
         trackId: current.spotifyUri,
         expectedPositionMs: positionMs,
-        isPlaying: true
+        isPlaying: true,
+        stats
       });
     } catch (err) {
       console.error(`Heartbeat error for room ${roomCode}:`, err);
@@ -240,22 +251,61 @@ export async function registerRoutes(
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url || "", `http://${req.headers.host}`);
     const roomCode = url.searchParams.get("room")?.toUpperCase();
+    const socketId = Math.random().toString(36).substring(2, 11);
+    (ws as any).id = socketId;
+
     if (!roomCode) {
       ws.close();
       return;
     }
 
     if (!roomSubscriptions.has(roomCode)) {
-      roomSubscriptions.set(roomCode, new Set());
+      roomSubscriptions.set(roomCode, new Map());
     }
-    roomSubscriptions.get(roomCode)!.add(ws);
+    
+    // Check max listeners
+    storage.getRoomByCode(roomCode).then(room => {
+      const subs = roomSubscriptions.get(roomCode)!;
+      if (room && room.maxListeners && subs.size >= room.maxListeners) {
+        ws.send(JSON.stringify({ type: "error", message: "Room is full (max listeners reached)" }));
+        ws.close();
+        return;
+      }
+      
+      subs.set(socketId, ws);
 
-    ws.on("close", () => {
+      // Initial listener tracking
+      storage.upsertListener({
+        roomCode,
+        socketId,
+        status: "synced",
+      });
+    });
+
+    ws.on("message", async (msg) => {
+      try {
+        const data = JSON.parse(msg.toString());
+        if (data.type === "listener_status") {
+          await storage.upsertListener({
+            roomCode,
+            socketId,
+            status: data.status, // synced | catching_up | failed | control_only
+            deviceId: data.deviceId,
+            deviceName: data.deviceName
+          });
+        }
+      } catch (err) {
+        console.error("WS Message error:", err);
+      }
+    });
+
+    ws.on("close", async () => {
       const subs = roomSubscriptions.get(roomCode);
       if (subs) {
-        subs.delete(ws);
+        subs.delete(socketId);
         if (subs.size === 0) roomSubscriptions.delete(roomCode);
       }
+      await storage.removeListenerBySocketId(socketId);
     });
   });
 
@@ -406,6 +456,8 @@ export async function registerRoutes(
       name: z.string().min(1).max(50),
       mode: z.enum(["default", "listen_along"]).optional(),
       listenAlongEnabled: z.boolean().optional(),
+      maxListeners: z.number().nullable().optional(),
+      roomType: z.enum(["in_room", "remote_listen_along", "scheduled"]).optional(),
     });
     const body = schema.safeParse(_req.body);
     if (!body.success) return res.status(400).json({ error: "Invalid room data" });
@@ -426,6 +478,8 @@ export async function registerRoutes(
       mode: body.data.mode || "default",
       listenAlongEnabled: body.data.listenAlongEnabled || false,
       isPlaying: false,
+      maxListeners: body.data.maxListeners || null,
+      roomType: body.data.roomType || "remote_listen_along",
     });
     res.json(room);
   });
@@ -444,9 +498,48 @@ export async function registerRoutes(
     res.json({ success: true });
   });
 
+  app.patch("/api/rooms/:code/settings", async (req, res) => {
+    const code = req.params.code.toUpperCase();
+    const schema = z.object({
+      maxListeners: z.number().nullable().optional(),
+      roomType: z.enum(["in_room", "remote_listen_along", "scheduled"]).optional(),
+    });
+    const body = schema.safeParse(req.body);
+    if (!body.success) return res.status(400).json({ error: "Invalid settings data" });
+
+    await storage.updateRoomSettings(code, body.data);
+    broadcastToRoom(code, { type: "room_update" });
+    res.json({ success: true });
+  });
+
+  app.post("/api/rooms/:code/resync", async (req, res) => {
+    const code = req.params.code.toUpperCase();
+    const room = await storage.getRoomByCode(code);
+    if (!room) return res.status(404).json({ error: "Room not found" });
+
+    const current = await storage.getNowPlaying(code);
+    if (!current || !current.startedAt) return res.status(400).json({ error: "Nothing playing" });
+
+    const positionMs = current.initialPositionMs! + (Date.now() - current.startedAt.getTime());
+    
+    broadcastToRoom(code, {
+      type: "resync",
+      trackId: current.spotifyUri,
+      expectedPositionMs: positionMs,
+    });
+
+    res.json({ success: true });
+  });
+
+  app.get("/api/rooms/:code/listeners", async (req, res) => {
+    const listeners = await storage.getListeners(req.params.code.toUpperCase());
+    res.json(listeners);
+  });
+
   app.get("/api/rooms/:code", async (req, res) => {
     const room = await storage.getRoomByCode(req.params.code.toUpperCase());
     if (!room) return res.status(404).json({ error: "Room not found" });
+    const stats = await storage.getListenerStats(room.code);
     // Don't send tokens to the client
     res.json({
       id: room.id,
@@ -454,10 +547,13 @@ export async function registerRoutes(
       name: room.name,
       isActive: room.isActive,
       mode: room.mode,
+      roomType: room.roomType,
+      maxListeners: room.maxListeners,
       listenAlongEnabled: room.listenAlongEnabled,
       isPlaying: room.isPlaying,
       hasSpotify: !!room.spotifyToken,
       hasDevice: !!room.spotifyDeviceId,
+      stats
     });
   });
 

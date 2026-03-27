@@ -16,8 +16,11 @@ import {
   Wifi,
   WifiOff,
   Headphones,
-  Settings
+  Settings,
+  RotateCcw
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+
 import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { QueueEntry } from "@shared/schema";
@@ -100,10 +103,15 @@ export default function Host() {
     if (window.location.hash !== cleanHash) window.history.replaceState(null, "", cleanHash);
   }, [flashMessage, code]);
 
+  const [listenerStats, setListenerStats] = useState({ synced: 0, controlOnly: 0 });
+
   useRoomWebSocket(code, (data) => {
     if (data.type === "queue_update" || data.type === "playback_update" || data.type === "room_update") {
       queryClient.invalidateQueries({ queryKey: ["/api/rooms", code] });
       queryClient.invalidateQueries({ queryKey: ["/api/rooms", code, "queue"] });
+    } else if (data.type === "heartbeat" || data.type === "stats") {
+      if (data.stats) setListenerStats(data.stats);
+      else if (data.type === "stats") setListenerStats({ synced: data.synced, controlOnly: data.controlOnly });
     }
   });
 
@@ -121,14 +129,19 @@ export default function Host() {
     name: string;
     isActive: boolean;
     mode: string;
+    roomType: string;
+    maxListeners: number | null;
     listenAlongEnabled: boolean;
     hasSpotify: boolean;
     hasDevice: boolean;
+    stats?: { synced: number; controlOnly: number };
   }>({
     queryKey: ["/api/rooms", code],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/rooms/${code}`);
-      return res.json();
+      const data = await res.json();
+      if (data.stats) setListenerStats(data.stats);
+      return data;
     },
     enabled: code.length >= 4,
   });
@@ -239,6 +252,24 @@ export default function Host() {
     },
   });
 
+  const forceResync = useMutation({
+    mutationFn: async () => apiRequest("POST", `/api/rooms/${code}/resync`),
+    onSuccess: () => {
+      toast({ title: "Force Resync sent", description: "Broadcasting hard seek to all listeners." });
+    },
+  });
+
+  const updateSettings = useMutation({
+    mutationFn: async (params: { maxListeners?: number; roomType?: string }) => {
+      const res = await apiRequest("PATCH", `/api/rooms/${code}/settings`, params);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms", code] });
+      toast({ title: "Settings updated", description: "Room configuration saved." });
+    },
+  });
+
   const handleCopy = () => {
     navigator.clipboard.writeText(code);
     setCopied(true);
@@ -263,10 +294,15 @@ export default function Host() {
           <button onClick={() => navigate("/")} className="text-muted-foreground hover:text-foreground transition-colors"><ArrowLeft className="w-5 h-5" /></button>
           <div className="text-center">
             <h1 className="text-sm font-semibold">{roomData.name}</h1>
-            <div className="flex items-center justify-center gap-1.5">
-              <p className="text-xs text-primary font-medium">Host View</p>
-              {roomData.mode === "listen_along" && <span className="flex items-center gap-1 text-[10px] text-primary/70"><Headphones className="w-3 h-3" />Listen Along</span>}
-              {roomData.hasSpotify && <span className="flex items-center gap-1 text-[10px] text-primary/70">{playerReady ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}{playerReady ? "Connected" : "Connecting..."}</span>}
+            <div className="flex flex-col items-center">
+              <div className="flex items-center justify-center gap-1.5">
+                <p className="text-xs text-primary font-medium">Host View</p>
+                {roomData.mode === "listen_along" && <span className="flex items-center gap-1 text-[10px] text-primary/70"><Headphones className="w-3 h-3" />Listen Along</span>}
+                {roomData.hasSpotify && <span className="flex items-center gap-1 text-[10px] text-primary/70">{playerReady ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}{playerReady ? "Connected" : "Connecting..."}</span>}
+              </div>
+              <p className="text-[9px] text-muted-foreground mt-0.5">
+                {listenerStats.synced} in sync • {listenerStats.controlOnly} control-only
+              </p>
             </div>
           </div>
           <div className="w-5" />
@@ -292,7 +328,23 @@ export default function Host() {
         )}
 
         <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
-          <div className="flex items-center gap-1.5 mb-3">{nowPlaying ? <SoundBars /> : <Music className="w-4 h-4 text-muted-foreground" />}<span className="text-xs font-medium uppercase tracking-wider">{nowPlaying ? "Now Playing" : "Nothing Playing"}</span></div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              {nowPlaying ? <SoundBars /> : <Music className="w-4 h-4 text-muted-foreground" />}
+              <span className="text-xs font-medium uppercase tracking-wider">{nowPlaying ? "Now Playing" : "Nothing Playing"}</span>
+            </div>
+            {nowPlaying && roomData.mode === "listen_along" && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-7 text-[10px] gap-1 px-2 rounded-full border-primary/20 text-primary hover:bg-primary/5"
+                onClick={() => forceResync.mutate()}
+                disabled={forceResync.isPending}
+              >
+                <RotateCcw className="w-3 h-3" /> Force Resync All
+              </Button>
+            )}
+          </div>
           {nowPlaying ? (
             <div className="flex items-center gap-3">
               <AlbumArt src={nowPlaying.albumArt} size="w-14 h-14" />
@@ -308,10 +360,57 @@ export default function Host() {
         </div>
 
         <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
-          <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center justify-between"><div className="flex items-center gap-2"><Settings className="w-4 h-4 text-muted-foreground" /><span className="text-[10px] font-bold uppercase tracking-wider">Room Mode</span></div></div>
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex flex-col gap-0.5"><Label htmlFor="host-listen-along" className="text-sm font-semibold flex items-center gap-2"><Headphones className="w-4 h-4 text-primary" />Listen Along Mode</Label><p className="text-[10px] text-muted-foreground">Guests can sync their playback to yours</p></div>
-            <Switch id="host-listen-along" checked={roomData.mode === "listen_along"} onCheckedChange={(checked) => updateMode.mutate({ mode: checked ? "listen_along" : "default", listenAlongEnabled: checked })} disabled={updateMode.isPending} />
+          <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Settings className="w-4 h-4 text-muted-foreground" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Room Settings</span>
+            </div>
+          </div>
+          
+          <div className="divide-y divide-border">
+            <div className="p-4 flex items-center justify-between">
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="host-listen-along" className="text-sm font-semibold flex items-center gap-2">
+                  <Headphones className="w-4 h-4 text-primary" /> Listen Along Mode
+                </Label>
+                <p className="text-[10px] text-muted-foreground">Guests can sync their playback to yours</p>
+              </div>
+              <Switch 
+                id="host-listen-along" 
+                checked={roomData.mode === "listen_along"} 
+                onCheckedChange={(checked) => updateMode.mutate({ mode: checked ? "listen_along" : "default", listenAlongEnabled: checked })} 
+                disabled={updateMode.isPending} 
+              />
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Room Type</Label>
+                <select 
+                  className="bg-muted border-none rounded-md px-2 py-1 text-xs outline-none"
+                  value={roomData.roomType}
+                  onChange={(e) => updateSettings.mutate({ roomType: e.target.value })}
+                >
+                  <option value="in_room">In-Room Speaker Only</option>
+                  <option value="remote_listen_along">Remote Listen Along</option>
+                  <option value="scheduled">Scheduled Session</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Max Listeners</Label>
+                <div className="flex items-center gap-2">
+                  <Input 
+                    type="number" 
+                    className="w-16 h-8 text-xs bg-muted border-none text-center"
+                    placeholder="25"
+                    defaultValue={roomData.maxListeners || 25}
+                    onBlur={(e) => updateSettings.mutate({ maxListeners: parseInt(e.target.value) })}
+                  />
+                  <span className="text-[10px] text-muted-foreground">users</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

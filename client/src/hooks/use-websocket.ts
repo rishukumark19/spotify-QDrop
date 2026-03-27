@@ -9,6 +9,12 @@ export function useRoomWebSocket(
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
 
+  const sendMessage = (data: any) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(data));
+    }
+  };
+
   useEffect(() => {
     if (!roomCode) return;
 
@@ -22,18 +28,11 @@ export function useRoomWebSocket(
       } catch {}
     };
 
-    ws.onclose = () => {
-      // Reconnect after 3 seconds
-      setTimeout(() => {
-        if (wsRef.current === ws) {
-          wsRef.current = null;
-        }
-      }, 3000);
-    };
-
     return () => {
       ws.close();
       wsRef.current = null;
     };
   }, [roomCode]);
+
+  return { sendMessage };
 }

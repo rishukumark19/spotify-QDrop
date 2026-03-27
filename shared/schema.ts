@@ -14,6 +14,8 @@ export const rooms = pgTable("rooms", {
   mode: text("mode").notNull().default("default"), // 'default' | 'listen_along'
   listenAlongEnabled: boolean("listen_along_enabled").notNull().default(false),
   isPlaying: boolean("is_playing").notNull().default(false),
+  maxListeners: integer("max_listeners"),
+  roomType: text("room_type").notNull().default("remote_listen_along"), // in_room | remote_listen_along | scheduled
 });
 
 export const queueEntries = pgTable("queue_entries", {
@@ -31,10 +33,23 @@ export const queueEntries = pgTable("queue_entries", {
   initialPositionMs: integer("initial_position_ms").default(0),
 });
 
+export const listeners = pgTable("listeners", {
+  id: serial("id").primaryKey(),
+  roomCode: text("room_code").notNull(),
+  socketId: text("socket_id").notNull().unique(), 
+  deviceId: text("device_id"),
+  deviceName: text("device_name"),
+  status: text("status").notNull().default("synced"), // synced | catching_up | failed | control_only
+  lastSeen: timestamp("last_seen").notNull().defaultNow(),
+});
+
 export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true });
 export const insertQueueEntrySchema = createInsertSchema(queueEntries).omit({ id: true });
+export const insertListenerSchema = createInsertSchema(listeners).omit({ id: true });
 
 export type InsertRoom = z.infer<typeof insertRoomSchema>;
 export type Room = typeof rooms.$inferSelect;
 export type InsertQueueEntry = z.infer<typeof insertQueueEntrySchema>;
 export type QueueEntry = typeof queueEntries.$inferSelect;
+export type InsertListener = z.infer<typeof insertListenerSchema>;
+export type Listener = typeof listeners.$inferSelect;

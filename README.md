@@ -9,8 +9,8 @@ Whether it's a **gym, café, office, or a house party**, QDrop bridges the gap b
 ## 🚀 Why QDrop? (Beyond Spotify Jam)
 
 > [!TIP]
-> **v1.1 Update: Listen Along is here!**
-> We've just upgraded QDrop to support **Remote Synchronization**. Now, remote guests can connect their own Spotify accounts to a room and listen to the host's playback in real-time. Whether it's a long-distance jam or a private radio show, QDrop keeps everyone in sync.
+> **v1.2 Update: Power Sync & Host Tools!**
+> We've just upgraded QDrop's **Listen Along** mode to v1.2. Now, hosts can **Force Resync** all listeners with one click, guests can choose their own **Spotify Device** to sync to, and real-time **Listener Stats** (Synced vs. Control-only) are visible in the room header.
 
 While Spotify Jam is great for small groups of friends with Premium accounts, QDrop is built for **venues and public spaces**.
 
@@ -21,7 +21,7 @@ While Spotify Jam is great for small groups of friends with Premium accounts, QD
 | **Moderation** | Limited | **Host-only controls & limits** |
 | **Fairness** | Auto-ordered | **Custom per-user queue limits** |
 | **Public Use** | Difficult to manage | **QR Code + Join Code ready** |
-| **Persistence** | Dissolves after session | **Trackable room history & stats** |
+| **Real-time Sync** | Automatic | **Manual control + Drift protection** |
 
 ---
 
@@ -30,8 +30,7 @@ While Spotify Jam is great for small groups of friends with Premium accounts, QD
 1.  **🏋️ Gym / Café Request Box**: Put a QR code on the wall. Customers drop songs without logging in. The host uses smart filters to keep the vibe clean.
 2.  **🕙 Office Focus Radio**: Teammates suggest songs, but the host maintains control to avoid repeats and enforce "lo-fi only" focus blocks.
 3.  **🏠 Flatmate / Hostel Speaker**: A persistent room with play history and soft limits so one person can’t hijack the queue all night.
-4.  **🎮 Gaming / Discord Rooms**: Remote groups can sync the vibe while only the "Streamer" needs the actual playback active.
-5.  **🎧 Listen Along (New!)**: Remote guests can sync their own Spotify accounts to the host's session, perfect for "Remote Jams" or shared listening parties.
+4.  **🎧 Virtual Listening Parties**: Remote guests can sync their own Spotify accounts to the host's session. With **v1.2**, the host can "Hard Sync" everyone to the exact same millisecond.
 
 ---
 
@@ -44,10 +43,12 @@ QDrop models a **DJ + Crowd** dynamic.
 
 ### 🧠 Smart Features
 - **Listen Along Mode**: Optional real-time playback synchronization for remote guests.
+- **Drift Protection**: Guests automatically re-sync if their playback drifts more than 3s from the host.
+- **Device Management**: Guests can transfer their Listen Along session to any of their active Spotify devices.
+- **Host Power Tools**: "Force Resync All" broadcasts a hard seek to everyone, and flexible room configuration for max listeners.
 - **Real-Time Synchronization**: Powered by native WebSockets for instant queue updates across all devices.
 - **Fairness Engine**: Hard limits on guest contributions (e.g., max 3 songs per guest) to ensure everyone gets a turn.
 - **Auth-Free Search**: Guests can search for tracks using Spotify's catalog even if the host hasn't authenticated yet (via client-credentials fallback).
-- **Resilient Infrastructure**: Automatic fallback to in-memory storage if the database is unavailable for local development.
 
 ---
 
@@ -66,9 +67,9 @@ QDrop is a production-minded project with a single-repo, multi-package feel.
 
 ## 🛤️ Roadmap: Moving Beyond the "Control Wrapper"
 - [x] **Listen Along Sync (v1.1)**: Real-time playback synchronization for remote listeners.
-- [ ] **Guest Device Picker (v1.2)**: Allow guests to choose their sync device (phone, browser, or desktop).
-- [ ] **Advanced Listener Stats**: Real-time count of "Synced" vs "Control-only" guests in the room header.
-- [ ] **Host "Hard Sync"**: A dedicated button to force a resync across all remote listeners.
+- [x] **Guest Device Picker (v1.2)**: Allow guests to choose their sync device (phone, browser, or desktop).
+- [x] **Advanced Listener Stats (v1.2)**: Real-time count of "Synced" vs "Control-only" guests in the room header.
+- [x] **Host "Hard Sync" (v1.2)**: A dedicated button to force a resync across all remote listeners.
 - [ ] **Smart Fairness Queue**: Round-robin weighting so everyone gets a turn automatically.
 - [ ] **Live Voting Bar**: Songs float up/down based on guest votes.
 - [ ] **Vibe Meter**: Visual energy/danceability metrics of the current queue.

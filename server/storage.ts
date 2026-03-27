@@ -2,8 +2,9 @@ import "dotenv/config";
 import {
   type Room, type InsertRoom, rooms,
   type QueueEntry, type InsertQueueEntry, queueEntries,
+  type Listener, type InsertListener, listeners
 } from "@shared/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
@@ -33,6 +34,7 @@ export interface IStorage {
   updateRoomDeviceId(code: string, deviceId: string): Promise<void>;
   updateRoomMode(code: string, mode: string, listenAlongEnabled: boolean): Promise<void>;
   updateRoomPlaybackState(code: string, isPlaying: boolean): Promise<void>;
+  updateRoomSettings(code: string, settings: { maxListeners?: number | null, roomType?: string }): Promise<void>;
   getQueue(roomCode: string): Promise<QueueEntry[]>;
   addToQueue(entry: InsertQueueEntry): Promise<QueueEntry>;
   countUserSongs(roomCode: string, addedBy: string): Promise<number>;
@@ -40,13 +42,20 @@ export interface IStorage {
   removeEntry(id: number): Promise<void>;
   getNowPlaying(roomCode: string): Promise<QueueEntry | undefined>;
   skipToNext(roomCode: string, initialPositionMs?: number): Promise<QueueEntry | undefined>;
+  // Listener methods
+  upsertListener(listener: InsertListener): Promise<Listener>;
+  getListeners(roomCode: string): Promise<Listener[]>;
+  removeListenerBySocketId(socketId: string): Promise<void>;
+  getListenerStats(roomCode: string): Promise<{ synced: number; controlOnly: number }>;
 }
 
 export class MemoryStorage implements IStorage {
   private rooms: Room[] = [];
   private queueEntries: QueueEntry[] = [];
+  private listeners: Listener[] = [];
   private nextRoomId = 1;
   private nextQueueEntryId = 1;
+  private nextListenerId = 1;
 
   async createRoom(room: InsertRoom): Promise<Room> {
     const newRoom: Room = {
@@ -61,10 +70,65 @@ export class MemoryStorage implements IStorage {
       mode: room.mode ?? "default",
       listenAlongEnabled: room.listenAlongEnabled ?? false,
       isPlaying: room.isPlaying ?? false,
+      maxListeners: room.maxListeners ?? null,
+      roomType: room.roomType ?? "remote_listen_along",
     };
 
     this.rooms.push(newRoom);
     return newRoom;
+  }
+
+  async updateRoomSettings(code: string, settings: { maxListeners?: number | null, roomType?: string }): Promise<void> {
+    const room = await this.getRoomByCode(code);
+    if (!room) return;
+    if (settings.maxListeners !== undefined) room.maxListeners = settings.maxListeners;
+    if (settings.roomType !== undefined) room.roomType = settings.roomType;
+  }
+
+  // Listener methods
+  async upsertListener(listener: InsertListener): Promise<Listener> {
+    const existingIndex = this.listeners.findIndex(l => l.socketId === listener.socketId);
+    const now = new Date();
+    
+    if (existingIndex > -1) {
+      const updatedListener = { 
+        ...this.listeners[existingIndex], 
+        ...listener,
+        lastSeen: now 
+      };
+      this.listeners[existingIndex] = updatedListener;
+      return updatedListener;
+    }
+
+    const newListener: Listener = {
+      id: this.nextListenerId++,
+      roomCode: listener.roomCode,
+      socketId: listener.socketId,
+      deviceId: listener.deviceId ?? null,
+      deviceName: listener.deviceName ?? null,
+      status: listener.status ?? "synced",
+      lastSeen: now,
+    };
+    this.listeners.push(newListener);
+    return newListener;
+  }
+
+  async getListeners(roomCode: string): Promise<Listener[]> {
+    // Return listeners seen in the last 30 seconds
+    const thirtySecondsAgo = Date.now() - 30000;
+    return this.listeners.filter(l => l.roomCode === roomCode && l.lastSeen.getTime() > thirtySecondsAgo);
+  }
+
+  async removeListenerBySocketId(socketId: string): Promise<void> {
+    this.listeners = this.listeners.filter(l => l.socketId !== socketId);
+  }
+
+  async getListenerStats(roomCode: string): Promise<{ synced: number; controlOnly: number }> {
+    const active = await this.getListeners(roomCode);
+    return {
+      synced: active.filter(l => l.status === "synced" || l.status === "catching_up").length,
+      controlOnly: active.filter(l => l.status === "control_only" || l.status === "failed").length
+    };
   }
 
   async updateRoomMode(code: string, mode: string, listenAlongEnabled: boolean): Promise<void> {
@@ -175,7 +239,11 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Database is not configured");
     }
 
-    const [newRoom] = await db.insert(rooms).values(room).returning();
+    const [newRoom] = await db.insert(rooms).values({
+      ...room,
+      maxListeners: room.maxListeners ?? null,
+      roomType: room.roomType ?? "remote_listen_along",
+    }).returning();
     return newRoom;
   }
 
@@ -226,6 +294,70 @@ export class DatabaseStorage implements IStorage {
     await db.update(rooms)
       .set({ isPlaying })
       .where(eq(rooms.code, code));
+  }
+
+  async updateRoomSettings(code: string, settings: { maxListeners?: number | null, roomType?: string }): Promise<void> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
+    const updateData: any = {};
+    if (settings.maxListeners !== undefined) updateData.maxListeners = settings.maxListeners;
+    if (settings.roomType !== undefined) updateData.roomType = settings.roomType;
+
+    await db.update(rooms).set(updateData).where(eq(rooms.code, code));
+  }
+
+  async upsertListener(listener: InsertListener): Promise<Listener> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
+    // Attempt update first
+    const [updated] = await db.update(listeners)
+      .set({ 
+        ...listener, 
+        lastSeen: new Date() 
+      })
+      .where(eq(listeners.socketId, listener.socketId))
+      .returning();
+
+    if (updated) return updated;
+
+    const [inserted] = await db.insert(listeners)
+      .values({
+        ...listener,
+        lastSeen: new Date()
+      })
+      .returning();
+    
+    return inserted;
+  }
+
+  async getListeners(roomCode: string): Promise<Listener[]> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
+    const thirtySecondsAgo = new Date(Date.now() - 30000);
+    return await db.select().from(listeners)
+      .where(and(eq(listeners.roomCode, roomCode), sql`${listeners.lastSeen} > ${thirtySecondsAgo}`));
+  }
+
+  async removeListenerBySocketId(socketId: string): Promise<void> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
+    await db.delete(listeners).where(eq(listeners.socketId, socketId));
+  }
+
+  async getListenerStats(roomCode: string): Promise<{ synced: number; controlOnly: number }> {
+    const active = await this.getListeners(roomCode);
+    return {
+      synced: active.filter(l => l.status === "synced" || l.status === "catching_up").length,
+      controlOnly: active.filter(l => l.status === "control_only" || l.status === "failed").length
+    };
   }
 
   async getQueue(roomCode: string): Promise<QueueEntry[]> {

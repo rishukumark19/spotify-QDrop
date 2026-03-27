@@ -12,12 +12,25 @@ import {
   ArrowLeft,
   X,
   Headphones,
-  CheckCircle2,
-  RotateCcw
 } from "lucide-react";
 import type { QueueEntry } from "@shared/schema";
 import { AppFooter } from "@/components/AppFooter";
 import { useRoomWebSocket } from "@/hooks/use-websocket";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { 
+  Tablet, 
+  Monitor, 
+  Smartphone, 
+  Volume2,
+  CheckCircle2,
+  RotateCcw
+} from "lucide-react";
 
 function sanitizeRoomCode(value?: string) {
   return (value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
@@ -96,58 +109,144 @@ export default function Room() {
     }
   }, [code]);
 
-  const syncToHost = async (trackId: string, positionMs: number) => {
+  const [nowPlayingMs, setNowPlayingMs] = useState<number>(0);
+  const [listenerStats, setListenerStats] = useState({ synced: 0, controlOnly: 0 });
+  const [availableDevices, setAvailableDevices] = useState<any[]>([]);
+  const [showDevicePicker, setShowDevicePicker] = useState(false);
+
+  // WebSocket for real-time updates
+  const { sendMessage } = useRoomWebSocket(code, (data) => {
+    if (data.type === "queue_update" || data.type === "playback_update" || data.type === "room_update") {
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms", code] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms", code, "queue"] });
+    } else if (data.type === "heartbeat") {
+      if (data.stats) setListenerStats(data.stats);
+      
+      if (guestToken && data.isPlaying) {
+        const now = Date.now();
+        // Sync every 10s or if specifically requested
+        if (now - lastSyncRef.current > 10000) {
+          syncToHost(data.trackId, data.expectedPositionMs);
+          lastSyncRef.current = now;
+        }
+      }
+    } else if (data.type === "stats") {
+      setListenerStats({ synced: data.synced, controlOnly: data.controlOnly });
+    } else if (data.type === "resync" && guestToken) {
+      syncToHost(data.trackId, data.expectedPositionMs, true);
+    }
+  });
+
+  const reportStatus = (status: string, deviceId?: string, deviceName?: string) => {
+    sendMessage({
+      type: "listener_status",
+      status,
+      deviceId,
+      deviceName
+    });
+  };
+
+  const fetchDevices = async () => {
+    if (!guestToken) return;
+    try {
+      const res = await fetch("https://api.spotify.com/v1/me/player/devices", {
+        headers: { Authorization: `Bearer ${guestToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableDevices(data.devices || []);
+      }
+    } catch (err) {
+      console.error("Error fetching devices:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (guestToken) {
+      fetchDevices();
+      reportStatus("synced");
+    }
+  }, [guestToken]);
+
+  const syncToHost = async (trackId: string, positionMs: number, force = false) => {
     if (!guestToken) return;
     try {
       const res = await fetch("https://api.spotify.com/v1/me/player", {
         headers: { Authorization: `Bearer ${guestToken}` },
       });
+      
       if (res.status === 401) {
         setGuestToken(null);
         localStorage.removeItem(`spotify_token_${code}`);
+        reportStatus("failed");
         return;
       }
-      if (res.status === 204) return; // No active device
+
+      if (res.status === 204) {
+        reportStatus("control_only");
+        return; 
+      }
 
       const data = await res.json();
       const currentTrackId = data.item?.uri;
       const currentPosition = data.progress_ms;
       const drift = Math.abs(currentPosition - positionMs);
+      const deviceId = data.device?.id;
+      const deviceName = data.device?.name;
 
-      if (currentTrackId !== trackId) {
-        await fetch("https://api.spotify.com/v1/me/player/play", {
+      if (currentTrackId !== trackId || drift > 3000 || force) {
+        reportStatus("catching_up", deviceId, deviceName);
+        
+        const playRes = await fetch("https://api.spotify.com/v1/me/player/play" + (deviceId ? `?device_id=${deviceId}` : ""), {
           method: "PUT",
           headers: { Authorization: `Bearer ${guestToken}`, "Content-Type": "application/json" },
           body: JSON.stringify({ uris: [trackId], position_ms: Math.floor(positionMs) }),
         });
-        setIsSynced(true);
-      } else if (drift > 3000) {
-        await fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${Math.floor(positionMs)}`, {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${guestToken}` },
-        });
-        setIsSynced(true);
+
+        if (playRes.ok) {
+          setIsSynced(true);
+          reportStatus("synced", deviceId, deviceName);
+        } else {
+          setIsSynced(false);
+          reportStatus("failed", deviceId, deviceName);
+        }
       } else {
         setIsSynced(true);
+        reportStatus("synced", deviceId, deviceName);
       }
     } catch (err) {
       console.error("Sync error:", err);
+      reportStatus("failed");
     }
   };
 
-  // WebSocket for real-time updates
-  useRoomWebSocket(code, (data) => {
-    if (data.type === "queue_update" || data.type === "playback_update" || data.type === "room_update") {
-      queryClient.invalidateQueries({ queryKey: ["/api/rooms", code] });
-      queryClient.invalidateQueries({ queryKey: ["/api/rooms", code, "queue"] });
-    } else if (data.type === "heartbeat" && guestToken) {
-      const now = Date.now();
-      if (now - lastSyncRef.current > 10000) {
-        syncToHost(data.trackId, data.expectedPositionMs);
-        lastSyncRef.current = now;
+  const selectDevice = async (deviceId: string) => {
+    if (!guestToken) return;
+    try {
+      // Transfer playback to this device
+      const res = await fetch("https://api.spotify.com/v1/me/player", {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${guestToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ device_ids: [deviceId], play: true }),
+      });
+      if (res.ok) {
+        setShowDevicePicker(false);
+        // Force resync after 2 seconds
+        setTimeout(() => syncToHost(nowPlaying?.spotifyUri || "", 0, true), 2000);
       }
+    } catch (err) {
+      console.error("Device select error:", err);
     }
-  });
+  };
+
+  const getDeviceIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case "computer": return <Monitor className="w-4 h-4" />;
+      case "smartphone": return <Smartphone className="w-4 h-4" />;
+      case "tablet": return <Tablet className="w-4 h-4" />;
+      default: return <Volume2 className="w-4 h-4" />;
+    }
+  };
 
   const roomQuery = useQuery<{
     id: number;
@@ -155,14 +254,19 @@ export default function Room() {
     name: string;
     isActive: boolean;
     mode: string;
+    roomType: string;
+    maxListeners: number | null;
     listenAlongEnabled: boolean;
     isPlaying: boolean;
     hasSpotify: boolean;
+    stats?: { synced: number; controlOnly: number };
   }>({
     queryKey: ["/api/rooms", code],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/rooms/${code}`);
-      return res.json();
+      const data = await res.json();
+      if (data.stats) setListenerStats(data.stats);
+      return data;
     },
     enabled: code.length >= 4,
   });
@@ -219,6 +323,12 @@ export default function Room() {
   const nowPlaying = queueQuery.data?.nowPlaying;
   const mySongsInQueue = queue.filter((e) => e.addedBy === sessionUserId).length;
 
+  const resyncMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/rooms/${code}/resync`);
+    }
+  });
+
   if (roomQuery.isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -252,11 +362,16 @@ export default function Room() {
           </button>
           <div className="text-center">
             <h1 className="text-sm font-semibold text-foreground">{roomData.name}</h1>
-            <div className="flex items-center justify-center gap-1.5">
-              <p className="text-xs text-muted-foreground font-mono">{code}</p>
-              {roomData.hasSpotify && (
-                <span className="text-[10px] text-primary font-medium px-1.5 py-0.5 bg-primary/10 rounded">Spotify</span>
-              )}
+            <div className="flex flex-col items-center">
+              <div className="flex items-center justify-center gap-1.5">
+                <p className="text-xs text-muted-foreground font-mono">{code}</p>
+                {roomData.hasSpotify && (
+                  <span className="text-[10px] text-primary font-medium px-1.5 py-0.5 bg-primary/10 rounded">Spotify</span>
+                )}
+              </div>
+              <p className="text-[9px] text-muted-foreground mt-0.5">
+                {listenerStats.synced} in sync • {listenerStats.controlOnly} control-only
+              </p>
             </div>
           </div>
           <div className="w-5" />
@@ -264,71 +379,135 @@ export default function Room() {
       </header>
 
       {/* Now Playing */}
-      {nowPlaying && (
-        <div className="px-4 py-4 border-b border-border">
-          <div className="flex items-center gap-1.5 mb-3">
-            <SoundBars />
-            <span className="text-xs font-medium text-primary uppercase tracking-wider">Now Playing</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <AlbumArt src={nowPlaying.albumArt} size="w-14 h-14" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground truncate">{nowPlaying.songTitle}</p>
-              <p className="text-xs text-muted-foreground truncate">{nowPlaying.artist}</p>
+      <div className="px-4 py-4 border-b border-border">
+        <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              {nowPlaying ? <SoundBars /> : <Music className="w-4 h-4 text-muted-foreground" />}
+              <span className="text-xs font-medium text-primary uppercase tracking-wider">{nowPlaying ? "Now Playing" : "Nothing Playing"}</span>
             </div>
-            {nowPlaying.duration && (
-              <span className="text-xs text-muted-foreground font-mono">{nowPlaying.duration}</span>
+            {guestToken && (
+              <Dialog open={showDevicePicker} onOpenChange={setShowDevicePicker}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 text-[10px] gap-1 px-2 rounded-full" onClick={fetchDevices}>
+                    <Smartphone className="w-3 h-3" /> Device
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-[320px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl">
+                  <div className="p-4 bg-background border-b border-border flex items-center justify-between">
+                    <h2 className="font-bold text-sm tracking-tight text-foreground">Select Output Device</h2>
+                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full" onClick={() => setShowDevicePicker(false)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div className="p-2 max-h-[360px] overflow-y-auto">
+                    {availableDevices.length > 0 ? (
+                      <div className="space-y-1">
+                        {availableDevices.map((d) => (
+                          <button
+                            key={d.id}
+                            onClick={() => selectDevice(d.id)}
+                            className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${d.is_active ? 'bg-primary/10 border border-primary/20 shadow-sm' : 'hover:bg-muted border border-transparent'}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg ${d.is_active ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                                {getDeviceIcon(d.type)}
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold tracking-tight">{d.name}</p>
+                                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                  {d.is_active ? (
+                                    <>
+                                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                      Current Device
+                                    </>
+                                  ) : (
+                                    "Connect to sync"
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            {d.is_active && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-12 text-center px-6">
+                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-4 opacity-50">
+                          <Volume2 className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                        <p className="text-[11px] font-bold text-foreground">No active devices found</p>
+                        <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                          Open Spotify on any device (phone, laptop, speaker) and start playing a song to see it here.
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="mt-6 rounded-full text-[10px] h-8 px-4"
+                          onClick={fetchDevices}
+                        >
+                          Scan Again
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
-        </div>
-      )}
 
-      {/* Listen Along CTA */}
-      {roomData.listenAlongEnabled && (
-        <div className="px-4 py-3 bg-primary/5 border-b border-primary/10">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2.5">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${guestToken ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
-                <Headphones className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold text-foreground">
-                  {guestToken ? "Listening Along" : "Listen on your Spotify"}
-                </p>
-                <p className="text-[10px] text-muted-foreground truncate">
-                  {guestToken ? (isSynced ? "Synced to host" : "Checking sync...") : "Keep your account in sync with the speaker"}
-                </p>
-              </div>
-            </div>
-            {guestToken ? (
-              <div className="flex items-center gap-1">
-                {isSynced ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
-                ) : (
-                  <RotateCcw className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
+          {nowPlaying ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <AlbumArt src={nowPlaying.albumArt} size="w-14 h-14" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground truncate">{nowPlaying.songTitle}</p>
+                  <p className="text-xs text-muted-foreground truncate font-medium">{nowPlaying.artist}</p>
+                </div>
+                {nowPlaying.duration && (
+                  <span className="text-[10px] text-muted-foreground font-mono bg-muted/50 px-1.5 py-0.5 rounded shrink-0">{nowPlaying.duration}</span>
                 )}
-                <Button variant="ghost" size="sm" onClick={() => {
-                   localStorage.removeItem(`spotify_token_${code}`);
-                   setGuestToken(null);
-                }} className="text-[10px] h-7 px-2 text-muted-foreground hover:text-foreground">Disconnect</Button>
               </div>
-            ) : (
-              <Button
-                size="sm"
-                onClick={async () => {
-                  const res = await apiRequest("GET", "/api/spotify/auth?room=" + code);
-                  const { authUrl } = await res.json();
-                  const guestAuthUrl = authUrl.replace("/api/spotify/callback", "/api/spotify/guest-callback");
-                  window.location.href = guestAuthUrl;
-                }}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground text-[10px] h-8 px-3 rounded-full"
-              >
-                Connect Spotify
-              </Button>
-            )}
-          </div>
+              
+              {guestToken && (
+                <div className="pt-3 mt-1 border-t border-border/50 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`p-1.5 rounded-full ${isSynced ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                      <Headphones className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Sync Health</span>
+                      <div className="flex items-center gap-1.5">
+                        {isSynced ? (
+                          <span className="text-[10px] text-green-500 font-bold flex items-center gap-1">
+                            Live Sync Active
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-amber-500 font-bold flex items-center gap-1">
+                            Catching up...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 rounded-full text-[10px] gap-1.5 hover:bg-muted font-bold"
+                    onClick={() => syncToHost(nowPlaying?.spotifyUri || "", 0, true)}
+                  >
+                    <RotateCcw className="w-3 h-3" /> Resync Now
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="py-4 text-center">
+              <p className="text-sm text-muted-foreground italic font-medium">Waiting for host to start playback...</p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Search section */}
       <div className="px-4 py-3">
