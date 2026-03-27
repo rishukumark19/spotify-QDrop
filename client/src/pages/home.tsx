@@ -12,8 +12,6 @@ export default function Home() {
   const [roomName, setRoomName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [activeTab, setActiveTab] = useState<"create" | "join">("create");
-  const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
-  const currentHost = currentOrigin.replace(/^https?:\/\//, "");
 
   const createRoom = useMutation({
     mutationFn: async (name: string) => {
@@ -175,21 +173,21 @@ export default function Home() {
             About QDrop
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            QDrop keeps group listening simple. Start a room, share the QR code, and let everyone add tracks to one live queue.
+            QDrop is built for shared speakers, quick joins, and a cleaner way to hand music control to the room without passing around one phone.
           </p>
-          {currentOrigin && (
-            <div className="mt-4 flex flex-col gap-2">
-              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">
-                Running At
-              </p>
-              <a
-                href={currentOrigin}
-                className="text-xs font-mono text-primary hover:underline transition-all"
-              >
-                {currentHost}
-              </a>
-            </div>
-          )}
+          <div className="mt-4 flex flex-col gap-2">
+            <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">
+              Live At
+            </p>
+            <a
+              href="https://qdrop.live"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-mono text-primary hover:underline transition-all"
+            >
+              qdrop.live
+            </a>
+          </div>
         </div>
 
         <div className="pb-6">
