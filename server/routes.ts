@@ -62,6 +62,32 @@ function broadcastToRoom(roomCode: string, data: object) {
   });
 }
 
+// Global heartbeat for Listen Along
+setInterval(async () => {
+  for (const [roomCode, subs] of roomSubscriptions.entries()) {
+    if (subs.size === 0) continue;
+
+    try {
+      const room = await storage.getRoomByCode(roomCode);
+      if (!room || !room.listenAlongEnabled || !room.isPlaying) continue;
+
+      const current = await storage.getNowPlaying(roomCode);
+      if (!current || !current.startedAt || !current.spotifyUri) continue;
+
+      const positionMs = current.initialPositionMs! + (Date.now() - current.startedAt.getTime());
+
+      broadcastToRoom(roomCode, {
+        type: "heartbeat",
+        trackId: current.spotifyUri,
+        expectedPositionMs: positionMs,
+        isPlaying: true
+      });
+    } catch (err) {
+      console.error(`Heartbeat error for room ${roomCode}:`, err);
+    }
+  }
+}, 5000);
+
 // Spotify API helpers
 async function spotifySearchTracks(query: string, token: string): Promise<any[]> {
   const res = await fetch(
@@ -328,6 +354,42 @@ export async function registerRoutes(
     res.json({ token });
   });
 
+  // Guest Spotify Login callback (for Listen Along)
+  app.get("/api/spotify/guest-callback", async (req, res) => {
+    // This is for guests who want to listen along on their own Spotify
+    // We don't save their token to the DB, they keep it in their local storage
+    const code = req.query.code as string;
+    const roomCode = (req.query.state as string)?.toUpperCase();
+    const redirectUri = `${getRequestOrigin(req)}/api/spotify/guest-callback`;
+    const publicAppUrl = getPublicAppUrl(req);
+
+    if (!code) return res.redirect(`${publicAppUrl}/#/?error=auth_failed`);
+
+    try {
+      const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString("base64")}`,
+        },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: redirectUri,
+        }),
+      });
+
+      if (!tokenRes.ok) return res.redirect(`${publicAppUrl}/#/room/${roomCode}?error=token_failed`);
+
+      const tokenData = await tokenRes.json();
+      // Redirect back with the token in the hash (fragment) so the client can save it
+      // In a real app, we might use a session or a more secure way, but this is simple for v1
+      res.redirect(`${publicAppUrl}/#/room/${roomCode}?guest_token=${tokenData.access_token}&expires_in=${tokenData.expires_in}`);
+    } catch (err) {
+      res.redirect(`${publicAppUrl}/#/room/${roomCode}?error=auth_error`);
+    }
+  });
+
   // Register device ID from Web Playback SDK
   app.post("/api/rooms/:code/device", async (req, res) => {
     const code = req.params.code.toUpperCase();
@@ -340,8 +402,13 @@ export async function registerRoutes(
 
   // === Room routes ===
   app.post("/api/rooms", async (_req, res) => {
-    const body = z.object({ name: z.string().min(1).max(50) }).safeParse(_req.body);
-    if (!body.success) return res.status(400).json({ error: "Invalid room name" });
+    const schema = z.object({
+      name: z.string().min(1).max(50),
+      mode: z.enum(["default", "listen_along"]).optional(),
+      listenAlongEnabled: z.boolean().optional(),
+    });
+    const body = schema.safeParse(_req.body);
+    if (!body.success) return res.status(400).json({ error: "Invalid room data" });
 
     let code = generateRoomCode();
     while (await storage.getRoomByCode(code)) {
@@ -356,8 +423,25 @@ export async function registerRoutes(
       spotifyRefreshToken: null,
       spotifyTokenExpiry: null,
       spotifyDeviceId: null,
+      mode: body.data.mode || "default",
+      listenAlongEnabled: body.data.listenAlongEnabled || false,
+      isPlaying: false,
     });
     res.json(room);
+  });
+
+  app.patch("/api/rooms/:code/mode", async (req, res) => {
+    const code = req.params.code.toUpperCase();
+    const schema = z.object({
+      mode: z.enum(["default", "listen_along"]),
+      listenAlongEnabled: z.boolean(),
+    });
+    const body = schema.safeParse(req.body);
+    if (!body.success) return res.status(400).json({ error: "Invalid mode data" });
+
+    await storage.updateRoomMode(code, body.data.mode, body.data.listenAlongEnabled);
+    broadcastToRoom(code, { type: "room_update" });
+    res.json({ success: true });
   });
 
   app.get("/api/rooms/:code", async (req, res) => {
@@ -369,6 +453,9 @@ export async function registerRoutes(
       code: room.code,
       name: room.name,
       isActive: room.isActive,
+      mode: room.mode,
+      listenAlongEnabled: room.listenAlongEnabled,
+      isPlaying: room.isPlaying,
       hasSpotify: !!room.spotifyToken,
       hasDevice: !!room.spotifyDeviceId,
     });
@@ -461,16 +548,26 @@ export async function registerRoutes(
 
     const current = await storage.getNowPlaying(roomCode);
     if (current) {
-      // Resume playback if something is already marked as playing
+      // Resume playback
       if (room.spotifyToken && room.spotifyDeviceId && current.spotifyUri) {
         await spotifyResume(room.spotifyToken, room.spotifyDeviceId);
       }
+      await storage.updateRoomPlaybackState(roomCode, true);
+      // When resuming, we need to update startedAt to now - current position
+      // For simplicity, we just keep current startedAt if it was paused
+      // But we should track pause/resume properly. For v1, resume from start of the pause.
+      await storage.updateEntryStatus(current.id, "playing", new Date(), current.initialPositionMs || 0);
+      
+      broadcastToRoom(roomCode, { type: "playback_update" });
       return res.json({ nowPlaying: current });
     }
 
     const next = await storage.skipToNext(roomCode);
-    if (next && room.spotifyToken && room.spotifyDeviceId && next.spotifyUri) {
-      await spotifyPlay(room.spotifyToken, room.spotifyDeviceId, next.spotifyUri);
+    if (next) {
+      await storage.updateRoomPlaybackState(roomCode, true);
+      if (room.spotifyToken && room.spotifyDeviceId && next.spotifyUri) {
+        await spotifyPlay(room.spotifyToken, room.spotifyDeviceId, next.spotifyUri);
+      }
     }
 
     broadcastToRoom(roomCode, { type: "playback_update" });
@@ -482,6 +579,13 @@ export async function registerRoutes(
     const room = await storage.getRoomByCode(roomCode);
     if (!room) return res.status(404).json({ error: "Room not found" });
 
+    const current = await storage.getNowPlaying(roomCode);
+    if (current && current.startedAt) {
+      const positionMs = current.initialPositionMs! + (Date.now() - current.startedAt.getTime());
+      await storage.updateEntryStatus(current.id, "playing", new Date(0), positionMs); // Set startedAt to far past to stop calculation
+    }
+
+    await storage.updateRoomPlaybackState(roomCode, false);
     if (room.spotifyToken && room.spotifyDeviceId) {
       await spotifyPause(room.spotifyToken, room.spotifyDeviceId);
     }
@@ -496,8 +600,13 @@ export async function registerRoutes(
     if (!room) return res.status(404).json({ error: "Room not found" });
 
     const next = await storage.skipToNext(roomCode);
-    if (next && room.spotifyToken && room.spotifyDeviceId && next.spotifyUri) {
-      await spotifyPlay(room.spotifyToken, room.spotifyDeviceId, next.spotifyUri);
+    if (next) {
+      await storage.updateRoomPlaybackState(roomCode, true);
+      if (room.spotifyToken && room.spotifyDeviceId && next.spotifyUri) {
+        await spotifyPlay(room.spotifyToken, room.spotifyDeviceId, next.spotifyUri);
+      }
+    } else {
+      await storage.updateRoomPlaybackState(roomCode, false);
     }
 
     broadcastToRoom(roomCode, { type: "playback_update" });

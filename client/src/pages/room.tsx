@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams } from "wouter";
+import { useState, useEffect, useRef } from "react";
+import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,10 @@ import {
   ListMusic,
   ArrowLeft,
   X,
+  Headphones,
+  CheckCircle2,
+  RotateCcw
 } from "lucide-react";
-import { useLocation } from "wouter";
 import type { QueueEntry } from "@shared/schema";
 import { AppFooter } from "@/components/AppFooter";
 import { useRoomWebSocket } from "@/hooks/use-websocket";
@@ -30,7 +32,7 @@ function generateUserId(): string {
   return id;
 }
 
-let sessionUserId = generateUserId();
+const sessionUserId = generateUserId();
 
 function SoundBars() {
   return (
@@ -75,15 +77,88 @@ export default function Room() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [guestToken, setGuestToken] = useState<string | null>(localStorage.getItem(`spotify_token_${code}`));
+  const [isSynced, setIsSynced] = useState(false);
+  const lastSyncRef = useRef<number>(0);
+
+  // Parse token from URL if returned from callback
+  useEffect(() => {
+    const hash = window.location.hash || "";
+    const queryString = hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : "";
+    const searchParams = new URLSearchParams(queryString || window.location.search);
+    const token = searchParams.get("guest_token");
+    if (token) {
+      setGuestToken(token);
+      localStorage.setItem(`spotify_token_${code}`, token);
+      // Clean URL: Keep the hash path but remove params
+      const cleanHash = hash.split("?")[0];
+      window.history.replaceState(null, "", cleanHash);
+    }
+  }, [code]);
+
+  const syncToHost = async (trackId: string, positionMs: number) => {
+    if (!guestToken) return;
+    try {
+      const res = await fetch("https://api.spotify.com/v1/me/player", {
+        headers: { Authorization: `Bearer ${guestToken}` },
+      });
+      if (res.status === 401) {
+        setGuestToken(null);
+        localStorage.removeItem(`spotify_token_${code}`);
+        return;
+      }
+      if (res.status === 204) return; // No active device
+
+      const data = await res.json();
+      const currentTrackId = data.item?.uri;
+      const currentPosition = data.progress_ms;
+      const drift = Math.abs(currentPosition - positionMs);
+
+      if (currentTrackId !== trackId) {
+        await fetch("https://api.spotify.com/v1/me/player/play", {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${guestToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ uris: [trackId], position_ms: Math.floor(positionMs) }),
+        });
+        setIsSynced(true);
+      } else if (drift > 3000) {
+        await fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${Math.floor(positionMs)}`, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${guestToken}` },
+        });
+        setIsSynced(true);
+      } else {
+        setIsSynced(true);
+      }
+    } catch (err) {
+      console.error("Sync error:", err);
+    }
+  };
 
   // WebSocket for real-time updates
   useRoomWebSocket(code, (data) => {
-    if (data.type === "queue_update" || data.type === "playback_update") {
+    if (data.type === "queue_update" || data.type === "playback_update" || data.type === "room_update") {
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms", code] });
       queryClient.invalidateQueries({ queryKey: ["/api/rooms", code, "queue"] });
+    } else if (data.type === "heartbeat" && guestToken) {
+      const now = Date.now();
+      if (now - lastSyncRef.current > 10000) {
+        syncToHost(data.trackId, data.expectedPositionMs);
+        lastSyncRef.current = now;
+      }
     }
   });
 
-  const roomQuery = useQuery<{ id: number; code: string; name: string; isActive: boolean; hasSpotify: boolean }>({
+  const roomQuery = useQuery<{
+    id: number;
+    code: string;
+    name: string;
+    isActive: boolean;
+    mode: string;
+    listenAlongEnabled: boolean;
+    isPlaying: boolean;
+    hasSpotify: boolean;
+  }>({
     queryKey: ["/api/rooms", code],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/rooms/${code}`);
@@ -99,7 +174,7 @@ export default function Room() {
       return res.json();
     },
     enabled: code.length >= 4 && !!roomQuery.data,
-    refetchInterval: 5000, // Fallback polling, WebSocket handles most updates
+    refetchInterval: 5000,
   });
 
   const searchResults = useQuery<Song[]>({
@@ -139,6 +214,7 @@ export default function Room() {
     },
   });
 
+  const roomData = roomQuery.data;
   const queue = queueQuery.data?.queue || [];
   const nowPlaying = queueQuery.data?.nowPlaying;
   const mySongsInQueue = queue.filter((e) => e.addedBy === sessionUserId).length;
@@ -151,7 +227,7 @@ export default function Room() {
     );
   }
 
-  if (roomQuery.isError || !roomQuery.data) {
+  if (roomQuery.isError || !roomData) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6">
         <Music className="w-12 h-12 text-muted-foreground mb-4" />
@@ -159,7 +235,7 @@ export default function Room() {
         <p className="text-sm text-muted-foreground mb-6 text-center">
           This room code doesn't exist or the session has ended.
         </p>
-        <Button onClick={() => navigate("/")} variant="outline" className="rounded-full" data-testid="button-go-home">
+        <Button onClick={() => navigate("/")} variant="outline" className="rounded-full">
           Go Home
         </Button>
       </div>
@@ -171,14 +247,14 @@ export default function Room() {
       {/* Header */}
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border px-4 py-3">
         <div className="flex items-center justify-between">
-          <button onClick={() => navigate("/")} className="text-muted-foreground hover:text-foreground transition-colors" data-testid="button-back">
+          <button onClick={() => navigate("/")} className="text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="text-center">
-            <h1 className="text-sm font-semibold text-foreground" data-testid="text-room-name">{roomQuery.data.name}</h1>
+            <h1 className="text-sm font-semibold text-foreground">{roomData.name}</h1>
             <div className="flex items-center justify-center gap-1.5">
               <p className="text-xs text-muted-foreground font-mono">{code}</p>
-              {roomQuery.data.hasSpotify && (
+              {roomData.hasSpotify && (
                 <span className="text-[10px] text-primary font-medium px-1.5 py-0.5 bg-primary/10 rounded">Spotify</span>
               )}
             </div>
@@ -197,11 +273,58 @@ export default function Room() {
           <div className="flex items-center gap-3">
             <AlbumArt src={nowPlaying.albumArt} size="w-14 h-14" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground truncate" data-testid="text-now-playing-title">{nowPlaying.songTitle}</p>
+              <p className="text-sm font-semibold text-foreground truncate">{nowPlaying.songTitle}</p>
               <p className="text-xs text-muted-foreground truncate">{nowPlaying.artist}</p>
             </div>
             {nowPlaying.duration && (
               <span className="text-xs text-muted-foreground font-mono">{nowPlaying.duration}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Listen Along CTA */}
+      {roomData.listenAlongEnabled && (
+        <div className="px-4 py-3 bg-primary/5 border-b border-primary/10">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${guestToken ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                <Headphones className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-foreground">
+                  {guestToken ? "Listening Along" : "Listen on your Spotify"}
+                </p>
+                <p className="text-[10px] text-muted-foreground truncate">
+                  {guestToken ? (isSynced ? "Synced to host" : "Checking sync...") : "Keep your account in sync with the speaker"}
+                </p>
+              </div>
+            </div>
+            {guestToken ? (
+              <div className="flex items-center gap-1">
+                {isSynced ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                ) : (
+                  <RotateCcw className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
+                )}
+                <Button variant="ghost" size="sm" onClick={() => {
+                   localStorage.removeItem(`spotify_token_${code}`);
+                   setGuestToken(null);
+                }} className="text-[10px] h-7 px-2 text-muted-foreground hover:text-foreground">Disconnect</Button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                onClick={async () => {
+                  const res = await apiRequest("GET", "/api/spotify/auth?room=" + code);
+                  const { authUrl } = await res.json();
+                  const guestAuthUrl = authUrl.replace("/api/spotify/callback", "/api/spotify/guest-callback");
+                  window.location.href = guestAuthUrl;
+                }}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-[10px] h-8 px-3 rounded-full"
+              >
+                Connect Spotify
+              </Button>
             )}
           </div>
         </div>
@@ -219,17 +342,16 @@ export default function Room() {
                   placeholder="Search songs or artists..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-card border-border pl-9 h-10 text-sm text-foreground placeholder:text-muted-foreground"
-                  data-testid="input-search-songs"
+                  className="bg-card border-border pl-9 h-10 text-sm"
                 />
               </div>
-              <button onClick={() => { setIsSearching(false); setSearchQuery(""); }} className="text-muted-foreground hover:text-foreground transition-colors p-2" data-testid="button-close-search">
+              <button onClick={() => { setIsSearching(false); setSearchQuery(""); }} className="text-muted-foreground hover:text-foreground transition-colors p-2">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {searchQuery.length >= 2 && (
-              <div className="space-y-1">
+              <div className="max-h-[300px] overflow-y-auto space-y-1 pr-1">
                 {searchResults.isLoading && (
                   <div className="flex justify-center py-6">
                     <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -241,7 +363,6 @@ export default function Room() {
                     onClick={() => addSong.mutate(song)}
                     disabled={addSong.isPending || mySongsInQueue >= 3}
                     className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-card transition-colors text-left disabled:opacity-40"
-                    data-testid={`button-add-song-${i}`}
                   >
                     <AlbumArt src={song.albumArt} />
                     <div className="min-w-0 flex-1">
@@ -249,14 +370,10 @@ export default function Room() {
                       <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-mono">{song.duration}</span>
                       <Plus className="w-4 h-4 text-primary" />
                     </div>
                   </button>
                 ))}
-                {searchResults.data?.length === 0 && !searchResults.isLoading && (
-                  <p className="text-sm text-muted-foreground text-center py-6">No songs found</p>
-                )}
               </div>
             )}
           </div>
@@ -264,8 +381,7 @@ export default function Room() {
           <Button
             onClick={() => setIsSearching(true)}
             disabled={mySongsInQueue >= 3}
-            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm rounded-full"
-            data-testid="button-open-search"
+            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm rounded-full shadow-lg shadow-primary/20"
           >
             <Plus className="w-4 h-4 mr-2" />
             {mySongsInQueue >= 3 ? "Song limit reached (3 max)" : "Add a Song"}
@@ -276,12 +392,12 @@ export default function Room() {
           {[0, 1, 2].map((i) => (
             <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i < mySongsInQueue ? "bg-primary" : "bg-muted"}`} />
           ))}
-          <span className="text-xs text-muted-foreground ml-1">{mySongsInQueue}/3 songs added</span>
+          <span className="text-[10px] text-muted-foreground ml-1 uppercase tracking-tight">{mySongsInQueue}/3 songs added</span>
         </div>
       </div>
 
       {/* Queue */}
-      <div className="flex-1 px-4 pb-8">
+      <div className="flex-1 px-4 pb-8 overflow-y-auto">
         <div className="flex items-center gap-2 mb-3 mt-2">
           <ListMusic className="w-4 h-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-foreground">Queue</h2>
@@ -289,7 +405,7 @@ export default function Room() {
         </div>
 
         {queue.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-border rounded-2xl">
             <div className="w-16 h-16 rounded-full bg-card flex items-center justify-center mb-4">
               <Music className="w-7 h-7 text-muted-foreground" />
             </div>
@@ -299,8 +415,8 @@ export default function Room() {
         ) : (
           <div className="space-y-1">
             {queue.map((entry, index) => (
-              <div key={entry.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-card/50 transition-colors group" data-testid={`queue-entry-${entry.id}`}>
-                <span className="w-5 text-xs text-muted-foreground font-mono text-right shrink-0">{index + 1}</span>
+              <div key={entry.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-card/50 transition-colors group">
+                <span className="w-5 text-[10px] text-muted-foreground font-mono text-right shrink-0">{index + 1}</span>
                 <AlbumArt src={entry.albumArt} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground truncate">{entry.songTitle}</p>
@@ -311,10 +427,9 @@ export default function Room() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {entry.duration && <span className="text-xs text-muted-foreground font-mono">{entry.duration}</span>}
+                <div className="flex items-center gap-2 shrink-0">
                   {entry.addedBy === sessionUserId && (
-                    <button onClick={() => removeSong.mutate(entry.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive p-1" data-testid={`button-remove-${entry.id}`}>
+                    <button onClick={() => removeSong.mutate(entry.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive p-1">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   )}
@@ -325,7 +440,7 @@ export default function Room() {
         )}
       </div>
 
-      <div className="pb-4">
+      <div className="pb-4 shrink-0">
         <AppFooter />
       </div>
     </div>

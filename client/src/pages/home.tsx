@@ -4,7 +4,9 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Music, Plus, LogIn, Dumbbell } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Music, Plus, LogIn, Dumbbell, Headphones } from "lucide-react";
 import { AppFooter } from "@/components/AppFooter";
 
 const aboutCards = [
@@ -27,10 +29,11 @@ export default function Home() {
   const [roomName, setRoomName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [activeTab, setActiveTab] = useState<"create" | "join">("create");
+  const [isListenAlong, setIsListenAlong] = useState(false);
 
   const createRoom = useMutation({
-    mutationFn: async (name: string) => {
-      const res = await apiRequest("POST", "/api/rooms", { name });
+    mutationFn: async (params: { name: string; mode: string; listenAlongEnabled: boolean }) => {
+      const res = await apiRequest("POST", "/api/rooms", params);
       return res.json();
     },
     onSuccess: (data) => {
@@ -52,7 +55,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="px-6 pt-6">
-        <div className="mx-auto flex w-full max-w-sm items-center justify-end gap-4 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+        <div className="mx-auto flex w-full max-sm items-center justify-end gap-4 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
           <button
             type="button"
             onClick={() => scrollToSection("how-it-works")}
@@ -131,8 +134,31 @@ export default function Home() {
                   data-testid="input-room-name"
                 />
               </div>
+
+              <div className="flex items-center justify-between p-4 rounded-xl border border-border/60 bg-card/60">
+                <div className="flex flex-col gap-0.5">
+                  <Label htmlFor="listen-along" className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Headphones className="w-4 h-4 text-primary" />
+                    Listen Along Mode
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Others can sync their Spotify to yours
+                  </p>
+                </div>
+                <Switch
+                  id="listen-along"
+                  checked={isListenAlong}
+                  onCheckedChange={setIsListenAlong}
+                  data-testid="switch-listen-along"
+                />
+              </div>
+
               <Button
-                onClick={() => createRoom.mutate(roomName || "My Room")}
+                onClick={() => createRoom.mutate({
+                  name: roomName || "My Room",
+                  mode: isListenAlong ? "listen_along" : "default",
+                  listenAlongEnabled: isListenAlong
+                })}
                 disabled={createRoom.isPending}
                 className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm rounded-full"
                 data-testid="button-create-room"

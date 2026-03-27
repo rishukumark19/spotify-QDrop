@@ -11,6 +11,9 @@ export const rooms = pgTable("rooms", {
   spotifyRefreshToken: text("spotify_refresh_token"),
   spotifyTokenExpiry: integer("spotify_token_expiry"),
   spotifyDeviceId: text("spotify_device_id"),
+  mode: text("mode").notNull().default("default"), // 'default' | 'listen_along'
+  listenAlongEnabled: boolean("listen_along_enabled").notNull().default(false),
+  isPlaying: boolean("is_playing").notNull().default(false),
 });
 
 export const queueEntries = pgTable("queue_entries", {
@@ -24,6 +27,8 @@ export const queueEntries = pgTable("queue_entries", {
   addedBy: text("added_by").notNull(),
   status: text("status").notNull().default("queued"), // queued | playing | played
   addedAt: timestamp("added_at").notNull().defaultNow(),
+  startedAt: timestamp("started_at"),
+  initialPositionMs: integer("initial_position_ms").default(0),
 });
 
 export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true });
