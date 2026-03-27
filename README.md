@@ -9,8 +9,8 @@ Whether it's a **gym, café, office, or a house party**, QDrop bridges the gap b
 ## 🚀 Why QDrop? (Beyond Spotify Jam)
 
 > [!TIP]
-> **v1.3 Update: The Guest UX Overhaul!**
-> We've completely redesigned the guest journey. No more settings—just one clean choice upon entry: **"Add Songs Only"** or **"Listen on my Spotify"**. Hosts now get a dedicated, collapsible **Admin Console** for "Listen Along" management, listener limits, and room type presets.
+> **v1.3 Update: The Guest-First Overhaul!**
+> QDrop is now prioritized for joiners. The Home page defaults to **Join Room**, and guests now explicitly choose their situation: **"In the Room"** (use the shared speakers) or **"Listen Remotely"** (sync audio to their own Spotify). Hosts now manage these sessions through a collapsible **Admin Power Console**.
 
 While Spotify Jam is great for small groups of friends with Premium accounts, QDrop is built for **venues and public spaces**.
 
@@ -66,10 +66,9 @@ QDrop is a production-minded project with a single-repo, multi-package feel.
 ---
 
 ## 🛤️ Roadmap: Moving Beyond the "Control Wrapper"
-- [x] **Opinionated Join Flow (v1.3)**: Simplifies the guest entry by branching between "Control" and "Listen Along" modes.
-- [x] **Host Admin Console (v1.3)**: A collapsible, high-level dashboard for managing room limits, types, and power tools.
-- [x] **Guest Device Picker (v1.2)**: Allow guests to choosing their sync device (phone, browser, or desktop).
-- [x] **Force Resync (v1.2)**: A broadcast button to pull all remote listeners back to the host's play cursor.
+- [x] **Guest-First Entry (v1.3)**: Home page prioritized for "Join Room" as the high-traffic action.
+- [x] **Situational Branching (v1.3)**: Explicit "In-Room" vs "Listen Remotely" choices for guests upon join.
+- [x] **Host Admin Console (v1.3)**: Collapsible power tools for Broadcast Seek + Room constraints.
 - [ ] **Smart Fairness Queue**: Automatic round-robin weighting to prevent a single guest from hijacking the queue.
 - [ ] **Live Vibe Meter**: Visual energy/danceability metrics of the current room state.
 - [ ] **Scheduled Session Presets**: Set a room to automatically start at a future date (e.g., "Friday Night Jam").
