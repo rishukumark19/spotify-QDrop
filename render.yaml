@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: qdrop-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build && npm run db:push
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
+      - key: SPOTIFY_REDIRECT_URI
+        sync: false
