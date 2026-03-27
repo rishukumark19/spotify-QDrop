@@ -28,8 +28,7 @@ export default function Home() {
   const [, navigate] = useLocation();
   const [roomName, setRoomName] = useState("");
   const [joinCode, setJoinCode] = useState("");
-  const [activeTab, setActiveTab] = useState<"create" | "join">("create");
-  const [isListenAlong, setIsListenAlong] = useState(false);
+  const [activeTab, setActiveTab] = useState<"join" | "create">("join");
 
   const createRoom = useMutation({
     mutationFn: async (params: { name: string; mode: string; listenAlongEnabled: boolean }) => {
@@ -92,24 +91,12 @@ export default function Home() {
       <div className="flex-1 flex flex-col items-center px-6 pb-8">
         <div className="w-full max-w-sm">
           {/* Tab switcher */}
-          <div className="flex rounded-lg bg-card p-1 mb-6" data-testid="tab-switcher">
-            <button
-              onClick={() => setActiveTab("create")}
-              className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-                activeTab === "create"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid="button-tab-create"
-            >
-              <Plus className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
-              Create Room
-            </button>
+          <div className="flex rounded-lg bg-card p-1 mb-6 border border-border/40" data-testid="tab-switcher">
             <button
               onClick={() => setActiveTab("join")}
-              className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
+              className={`flex-1 py-2.5 px-4 rounded-md text-sm font-bold tracking-tight transition-all ${
                 activeTab === "join"
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
               data-testid="button-tab-join"
@@ -117,79 +104,31 @@ export default function Home() {
               <LogIn className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
               Join Room
             </button>
+            <button
+              onClick={() => setActiveTab("create")}
+              className={`flex-1 py-2.5 px-4 rounded-md text-sm font-bold tracking-tight transition-all ${
+                activeTab === "create"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="button-tab-create"
+            >
+              <Plus className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+              Create Room
+            </button>
           </div>
 
-          {activeTab === "create" ? (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Room Name
+          {activeTab === "join" ? (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="bg-card/50 p-6 rounded-3xl border border-border shadow-sm">
+                <label className="block text-[10px] items-center text-center font-bold text-muted-foreground uppercase tracking-[0.2em] mb-4">
+                  Enter Room Code
                 </label>
                 <Input
-                  placeholder="e.g. Iron Paradise, Gold's Gym"
-                  value={roomName}
-                  onChange={(e) => setRoomName(e.target.value)}
-                  className="bg-card border-border h-12 text-foreground placeholder:text-muted-foreground"
-                  maxLength={50}
-                  data-testid="input-room-name"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-4 rounded-xl border border-border/60 bg-card/60">
-                <div className="flex flex-col gap-0.5">
-                  <Label htmlFor="listen-along" className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <Headphones className="w-4 h-4 text-primary" />
-                    Listen Along Mode
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Others can sync their Spotify to yours
-                  </p>
-                </div>
-                <Switch
-                  id="listen-along"
-                  checked={isListenAlong}
-                  onCheckedChange={setIsListenAlong}
-                  data-testid="switch-listen-along"
-                />
-              </div>
-
-              <Button
-                onClick={() => createRoom.mutate({
-                  name: roomName || "My Room",
-                  mode: isListenAlong ? "listen_along" : "default",
-                  listenAlongEnabled: isListenAlong
-                })}
-                disabled={createRoom.isPending}
-                className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm rounded-full"
-                data-testid="button-create-room"
-              >
-                {createRoom.isPending ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                    Creating...
-                  </span>
-                ) : (
-                  <>
-                    <Dumbbell className="w-4 h-4 mr-2" />
-                    Create Room
-                  </>
-                )}
-              </Button>
-              <p className="text-xs text-muted-foreground text-center">
-                You'll get a QR code others can scan to join
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Room Code
-                </label>
-                <Input
-                  placeholder="Enter 5-letter code"
+                  placeholder="KTY5R"
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                  className="bg-card border-border h-12 text-foreground placeholder:text-muted-foreground text-center text-lg tracking-[0.3em] font-mono uppercase"
+                  className="bg-background border-border h-14 text-foreground placeholder:text-muted-foreground/30 text-center text-2xl tracking-[0.3em] font-mono uppercase rounded-2xl focus:ring-primary/20"
                   maxLength={5}
                   data-testid="input-join-code"
                 />
@@ -197,14 +136,56 @@ export default function Home() {
               <Button
                 onClick={handleJoin}
                 disabled={joinCode.trim().length < 4}
-                className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm rounded-full"
+                className="w-full h-14 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm rounded-full shadow-lg shadow-primary/10 transition-all hover:scale-[1.01] active:scale-[0.98]"
                 data-testid="button-join-room"
               >
                 <LogIn className="w-4 h-4 mr-2" />
-                Join Room
+                Join the Party
               </Button>
-              <p className="text-xs text-muted-foreground text-center">
-                Ask the person controlling the speaker for the code
+              <p className="text-xs text-muted-foreground text-center px-4">
+                Ask the host for their 5-letter code or scan their QR code.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="bg-card/50 p-6 rounded-3xl border border-border">
+                <label className="block text-[10px] text-center font-bold text-muted-foreground uppercase tracking-[0.2em] mb-4">
+                  Room Name
+                </label>
+                <Input
+                  placeholder="e.g. My Awesome Session"
+                  value={roomName}
+                  onChange={(e) => setRoomName(e.target.value)}
+                  className="bg-background border-border h-14 text-foreground placeholder:text-muted-foreground/30 text-center text-sm font-medium rounded-2xl"
+                  maxLength={50}
+                  data-testid="input-room-name"
+                />
+              </div>
+
+              <Button
+                onClick={() => createRoom.mutate({
+                  name: roomName || "My Room",
+                  mode: "listen_along", // Default to listen along enabled for new rooms
+                  listenAlongEnabled: true
+                })}
+                disabled={createRoom.isPending}
+                className="w-full h-14 bg-foreground text-background hover:bg-foreground/90 font-bold text-sm rounded-full transition-all hover:scale-[1.01] active:scale-[0.98]"
+                data-testid="button-create-room"
+              >
+                {createRoom.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-background/30 border-t-background rounded-full animate-spin" />
+                    Starting...
+                  </span>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create New Room
+                  </>
+                )}
+              </Button>
+              <p className="text-xs text-muted-foreground text-center px-4">
+                You'll be the Host. One Spotify Premium account will power the speakers.
               </p>
             </div>
           )}

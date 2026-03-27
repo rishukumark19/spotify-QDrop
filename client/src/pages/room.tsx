@@ -380,13 +380,17 @@ export default function Room() {
         <main className="flex-1 px-6 space-y-4 max-w-sm mx-auto w-full">
           <button
             onClick={() => setJoinMode("control")}
-            className="w-full bg-card hover:bg-muted border border-border p-6 rounded-3xl text-left transition-all active:scale-[0.98] group"
+            className="w-full bg-card hover:bg-muted border border-border p-6 rounded-3xl text-left transition-all active:scale-[0.01] group relative overflow-hidden"
           >
-            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-              <Plus className="w-6 h-6" />
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
+                <Music className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">In the Room</h2>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Hear it on the main speakers. Just add tracks.</p>
+              </div>
             </div>
-            <h2 className="text-lg font-bold">Add Songs Only</h2>
-            <p className="text-sm text-muted-foreground mt-1 leading-relaxed">Join the queue and drop tracks. No Spotify account needed.</p>
           </button>
 
           {roomData.listenAlongEnabled && (
@@ -395,13 +399,17 @@ export default function Room() {
                 if (guestToken) setJoinMode("listen");
                 else connectSpotify();
               }}
-              className="w-full bg-card hover:bg-muted border border-border p-6 rounded-3xl text-left transition-all active:scale-[0.98] group"
+              className="w-full bg-foreground text-background hover:bg-foreground/90 p-6 rounded-3xl text-left transition-all active:scale-[0.98] group shadow-xl"
             >
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                <Headphones className="w-6 h-6" />
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-background/10 text-background flex items-center justify-center shrink-0">
+                  <Headphones className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Listen Remotely</h2>
+                  <p className="text-xs text-background/60 mt-0.5 leading-relaxed">I'm away. Sync music directly to my Spotify.</p>
+                </div>
               </div>
-              <h2 className="text-lg font-bold">Listen on my Spotify</h2>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">Hear the host's playback in sync on your own device.</p>
             </button>
           )}
 
