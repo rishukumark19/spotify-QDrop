@@ -17,10 +17,15 @@ import {
   WifiOff,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { QueueEntry } from "@shared/schema";
 import { AppFooter } from "@/components/AppFooter";
 import { useRoomWebSocket } from "@/hooks/use-websocket";
+import { toast } from "@/hooks/use-toast";
+
+function sanitizeRoomCode(value?: string) {
+  return (value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+}
 
 declare global {
   interface Window {
@@ -58,15 +63,63 @@ function AlbumArt({ src, size = "w-10 h-10" }: { src?: string | null; size?: str
   );
 }
 
+function useSpotifyFlashMessage() {
+  return useMemo(() => {
+    if (typeof window === "undefined") return null;
+
+    const hash = window.location.hash || "";
+    const queryString = hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : "";
+    const params = new URLSearchParams(queryString);
+
+    if (params.get("spotify") === "connected") {
+      return {
+        tone: "success" as const,
+        title: "Spotify connected",
+        description: "Your account connected successfully. Keep this page open to finish playback setup.",
+      };
+    }
+
+    const error = params.get("error");
+    if (!error) return null;
+
+    const descriptions: Record<string, string> = {
+      auth_failed: "Spotify login did not complete. Please try again.",
+      token_failed: "Spotify returned an invalid token response. Check your app settings and secret.",
+      auth_error: "Spotify authentication failed. Verify your client ID, secret, redirect URI, and test-user access.",
+    };
+
+    return {
+      tone: "error" as const,
+      title: "Spotify connection failed",
+      description: descriptions[error] || "Spotify setup could not be completed.",
+    };
+  }, []);
+}
+
 export default function Host() {
   const params = useParams<{ code: string }>();
-  const code = params.code?.toUpperCase() || "";
+  const code = sanitizeRoomCode(params.code);
   const [, navigate] = useLocation();
   const [copied, setCopied] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
   const [spotifyConnecting, setSpotifyConnecting] = useState(false);
   const playerRef = useRef<any>(null);
+  const flashMessage = useSpotifyFlashMessage();
+
+  useEffect(() => {
+    if (!flashMessage) return;
+    toast({
+      title: flashMessage.title,
+      description: flashMessage.description,
+      variant: flashMessage.tone === "error" ? "destructive" : "default",
+    });
+
+    const cleanHash = `#/host/${code}`;
+    if (window.location.hash !== cleanHash) {
+      window.history.replaceState(null, "", cleanHash);
+    }
+  }, [flashMessage]);
 
   // WebSocket for real-time updates
   useRoomWebSocket(code, (data) => {
@@ -293,6 +346,19 @@ export default function Host() {
       </header>
 
       <div className="flex-1 px-4 py-4 space-y-6">
+        {flashMessage && (
+          <div
+            className={`rounded-xl border p-4 ${
+              flashMessage.tone === "error"
+                ? "border-destructive/30 bg-destructive/10"
+                : "border-primary/30 bg-primary/10"
+            }`}
+          >
+            <p className="text-sm font-semibold text-foreground">{flashMessage.title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{flashMessage.description}</p>
+          </div>
+        )}
+
         {/* QR Code + Code section */}
         <div className="flex flex-col items-center">
           <div className="bg-white p-4 rounded-2xl mb-4">

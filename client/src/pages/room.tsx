@@ -17,6 +17,10 @@ import type { QueueEntry } from "@shared/schema";
 import { AppFooter } from "@/components/AppFooter";
 import { useRoomWebSocket } from "@/hooks/use-websocket";
 
+function sanitizeRoomCode(value?: string) {
+  return (value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+}
+
 function generateUserId(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   let id = "user_";
@@ -67,7 +71,7 @@ interface Song {
 
 export default function Room() {
   const params = useParams<{ code: string }>();
-  const code = params.code?.toUpperCase() || "";
+  const code = sanitizeRoomCode(params.code);
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);

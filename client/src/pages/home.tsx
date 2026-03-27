@@ -7,6 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Music, Plus, LogIn, Dumbbell } from "lucide-react";
 import { AppFooter } from "@/components/AppFooter";
 
+const aboutCards = [
+  {
+    title: "What QDrop does",
+    text: "QDrop lets one host control the room while everyone else joins from their own phone and adds tracks to the shared queue.",
+  },
+  {
+    title: "Why Spotify fits",
+    text: "Spotify stays on the host side. Guests do not need to log in. The host connects one Premium account to unlock real playback.",
+  },
+  {
+    title: "How to test the idea",
+    text: "Create a room, share the code or QR, let a few people add songs, and see whether the queue feels social instead of chaotic.",
+  },
+];
+
 export default function Home() {
   const [, navigate] = useLocation();
   const [roomName, setRoomName] = useState("");
@@ -30,8 +45,31 @@ export default function Home() {
     }
   };
 
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <div className="px-6 pt-6">
+        <div className="mx-auto flex w-full max-w-sm items-center justify-end gap-4 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => scrollToSection("how-it-works")}
+            className="transition-colors hover:text-foreground"
+          >
+            How It Works
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToSection("about-us")}
+            className="transition-colors hover:text-foreground"
+          >
+            About Us
+          </button>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="pt-12 pb-6 px-6 text-center">
         <div className="flex items-center justify-center gap-3 mb-3">
@@ -147,7 +185,7 @@ export default function Home() {
         </div>
 
         {/* How it works */}
-        <div className="w-full max-w-sm mt-10">
+        <div id="how-it-works" className="w-full max-w-sm mt-10 scroll-mt-8">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
             How it works
           </h2>
@@ -168,13 +206,21 @@ export default function Home() {
         </div>
 
         {/* About QDrop */}
-        <div className="w-full max-w-sm mt-12 pt-8 border-t border-border/50 text-center">
+        <div id="about-us" className="w-full max-w-sm mt-12 pt-8 border-t border-border/50 text-center scroll-mt-8">
           <h2 className="text-sm font-semibold text-foreground mb-3">
             About QDrop
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             QDrop is built for shared speakers, quick joins, and a cleaner way to hand music control to the room without passing around one phone.
           </p>
+          <div className="mt-6 space-y-3 text-left">
+            {aboutCards.map((card) => (
+              <div key={card.title} className="rounded-xl border border-border/60 bg-card/60 p-4">
+                <h3 className="text-sm font-semibold text-foreground">{card.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{card.text}</p>
+              </div>
+            ))}
+          </div>
           <div className="mt-4 flex flex-col gap-2">
             <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">
               Live At
