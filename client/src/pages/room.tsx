@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import type { QueueEntry } from "@shared/schema";
-import { PerplexityAttribution } from "@/components/PerplexityAttribution";
+import { AppFooter } from "@/components/AppFooter";
 import { useRoomWebSocket } from "@/hooks/use-websocket";
 
 function generateUserId(): string {
@@ -322,7 +322,7 @@ export default function Room() {
       </div>
 
       <div className="pb-4">
-        <PerplexityAttribution />
+        <AppFooter />
       </div>
     </div>
   );

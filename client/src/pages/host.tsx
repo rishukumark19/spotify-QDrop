@@ -19,7 +19,7 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { QueueEntry } from "@shared/schema";
-import { PerplexityAttribution } from "@/components/PerplexityAttribution";
+import { AppFooter } from "@/components/AppFooter";
 import { useRoomWebSocket } from "@/hooks/use-websocket";
 
 declare global {
@@ -438,7 +438,7 @@ export default function Host() {
       </div>
 
       <div className="pb-4">
-        <PerplexityAttribution />
+        <AppFooter />
       </div>
     </div>
   );

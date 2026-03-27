@@ -5,7 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Music, Plus, LogIn, Dumbbell } from "lucide-react";
-import { PerplexityAttribution } from "@/components/PerplexityAttribution";
+import { AppFooter } from "@/components/AppFooter";
 
 export default function Home() {
   const [, navigate] = useLocation();
@@ -175,7 +175,7 @@ export default function Home() {
             About QDrop
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            QDrop is a real-time collaborative music queue. Host a room, share the QR code, and let everyone drop their favorite tracks seamlessly.
+            QDrop keeps group listening simple. Start a room, share the QR code, and let everyone add tracks to one live queue.
           </p>
           {currentOrigin && (
             <div className="mt-4 flex flex-col gap-2">
@@ -193,7 +193,7 @@ export default function Home() {
         </div>
 
         <div className="pb-6">
-          <PerplexityAttribution />
+          <AppFooter />
         </div>
       </div>
     </div>

@@ -3,32 +3,33 @@ import {
   type Room, type InsertRoom, rooms,
   type QueueEntry, type InsertQueueEntry, queueEntries,
 } from "@shared/schema";
+import { eq, and, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
+
 const { Pool } = pg;
-import { eq, and, asc } from "drizzle-orm";
 
 const databaseUrl = process.env.DATABASE_URL;
+const hasDatabase = Boolean(databaseUrl);
 
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required. Copy .env.example to .env and set your Postgres connection string.");
-}
+const requireSsl = databaseUrl
+  ? process.env.DATABASE_SSL === "true" ||
+    /(?:^|[?&])sslmode=require(?:&|$)/i.test(databaseUrl)
+  : false;
 
-const requireSsl =
-  process.env.DATABASE_SSL === "true" ||
-  /(?:^|[?&])sslmode=require(?:&|$)/i.test(databaseUrl);
+const pool = databaseUrl
+  ? new Pool({
+      connectionString: databaseUrl,
+      ssl: requireSsl ? { rejectUnauthorized: false } : undefined,
+    })
+  : null;
 
-const pool = new Pool({
-  connectionString: databaseUrl,
-  ssl: requireSsl ? { rejectUnauthorized: false } : undefined,
-});
-
-export const db = drizzle(pool);
+export const db = pool ? drizzle(pool) : null;
 
 export interface IStorage {
   createRoom(room: InsertRoom): Promise<Room>;
   getRoomByCode(code: string): Promise<Room | undefined>;
-  updateRoomSpotifyToken(code: string, token: string, refreshToken: string, expiry: number): Promise<void>;
+  updateRoomSpotifyToken(code: string, token: string, refreshToken: string | null, expiry: number): Promise<void>;
   updateRoomDeviceId(code: string, deviceId: string): Promise<void>;
   getQueue(roomCode: string): Promise<QueueEntry[]>;
   addToQueue(entry: InsertQueueEntry): Promise<QueueEntry>;
@@ -39,30 +40,157 @@ export interface IStorage {
   skipToNext(roomCode: string): Promise<QueueEntry | undefined>;
 }
 
+export class MemoryStorage implements IStorage {
+  private rooms: Room[] = [];
+  private queueEntries: QueueEntry[] = [];
+  private nextRoomId = 1;
+  private nextQueueEntryId = 1;
+
+  async createRoom(room: InsertRoom): Promise<Room> {
+    const newRoom: Room = {
+      id: this.nextRoomId++,
+      code: room.code,
+      name: room.name,
+      isActive: room.isActive ?? true,
+      spotifyToken: room.spotifyToken ?? null,
+      spotifyRefreshToken: room.spotifyRefreshToken ?? null,
+      spotifyTokenExpiry: room.spotifyTokenExpiry ?? null,
+      spotifyDeviceId: room.spotifyDeviceId ?? null,
+    };
+
+    this.rooms.push(newRoom);
+    return newRoom;
+  }
+
+  async getRoomByCode(code: string): Promise<Room | undefined> {
+    return this.rooms.find((room) => room.code === code);
+  }
+
+  async updateRoomSpotifyToken(code: string, token: string, refreshToken: string | null, expiry: number): Promise<void> {
+    const room = await this.getRoomByCode(code);
+    if (!room) return;
+    room.spotifyToken = token;
+    room.spotifyRefreshToken = refreshToken;
+    room.spotifyTokenExpiry = expiry;
+  }
+
+  async updateRoomDeviceId(code: string, deviceId: string): Promise<void> {
+    const room = await this.getRoomByCode(code);
+    if (!room) return;
+    room.spotifyDeviceId = deviceId;
+  }
+
+  async getQueue(roomCode: string): Promise<QueueEntry[]> {
+    return this.queueEntries
+      .filter((entry) => entry.roomCode === roomCode && entry.status === "queued")
+      .sort((a, b) => a.addedAt.getTime() - b.addedAt.getTime());
+  }
+
+  async addToQueue(entry: InsertQueueEntry): Promise<QueueEntry> {
+    const newEntry: QueueEntry = {
+      id: this.nextQueueEntryId++,
+      roomCode: entry.roomCode,
+      songTitle: entry.songTitle,
+      artist: entry.artist,
+      albumArt: entry.albumArt ?? null,
+      duration: entry.duration ?? null,
+      spotifyUri: entry.spotifyUri ?? null,
+      addedBy: entry.addedBy,
+      status: entry.status ?? "queued",
+      addedAt: entry.addedAt ?? new Date(),
+    };
+
+    this.queueEntries.push(newEntry);
+    return newEntry;
+  }
+
+  async countUserSongs(roomCode: string, addedBy: string): Promise<number> {
+    return this.queueEntries.filter(
+      (entry) =>
+        entry.roomCode === roomCode &&
+        entry.addedBy === addedBy &&
+        entry.status === "queued",
+    ).length;
+  }
+
+  async updateEntryStatus(id: number, status: string): Promise<void> {
+    const entry = this.queueEntries.find((queueEntry) => queueEntry.id === id);
+    if (!entry) return;
+    entry.status = status;
+  }
+
+  async removeEntry(id: number): Promise<void> {
+    this.queueEntries = this.queueEntries.filter((entry) => entry.id !== id);
+  }
+
+  async getNowPlaying(roomCode: string): Promise<QueueEntry | undefined> {
+    return this.queueEntries.find(
+      (entry) => entry.roomCode === roomCode && entry.status === "playing",
+    );
+  }
+
+  async skipToNext(roomCode: string): Promise<QueueEntry | undefined> {
+    const current = await this.getNowPlaying(roomCode);
+    if (current) {
+      await this.updateEntryStatus(current.id, "played");
+    }
+
+    const next = this.queueEntries
+      .filter((entry) => entry.roomCode === roomCode && entry.status === "queued")
+      .sort((a, b) => a.addedAt.getTime() - b.addedAt.getTime())[0];
+
+    if (next) {
+      await this.updateEntryStatus(next.id, "playing");
+    }
+
+    return next;
+  }
+}
+
 export class DatabaseStorage implements IStorage {
   async createRoom(room: InsertRoom): Promise<Room> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     const [newRoom] = await db.insert(rooms).values(room).returning();
     return newRoom;
   }
 
   async getRoomByCode(code: string): Promise<Room | undefined> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     const [room] = await db.select().from(rooms).where(eq(rooms.code, code));
     return room;
   }
 
-  async updateRoomSpotifyToken(code: string, token: string, refreshToken: string, expiry: number): Promise<void> {
+  async updateRoomSpotifyToken(code: string, token: string, refreshToken: string | null, expiry: number): Promise<void> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     await db.update(rooms)
       .set({ spotifyToken: token, spotifyRefreshToken: refreshToken, spotifyTokenExpiry: expiry })
       .where(eq(rooms.code, code));
   }
 
   async updateRoomDeviceId(code: string, deviceId: string): Promise<void> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     await db.update(rooms)
       .set({ spotifyDeviceId: deviceId })
       .where(eq(rooms.code, code));
   }
 
   async getQueue(roomCode: string): Promise<QueueEntry[]> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     return await db
       .select()
       .from(queueEntries)
@@ -71,11 +199,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addToQueue(entry: InsertQueueEntry): Promise<QueueEntry> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     const [newEntry] = await db.insert(queueEntries).values(entry).returning();
     return newEntry;
   }
 
   async countUserSongs(roomCode: string, addedBy: string): Promise<number> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     const results = await db
       .select()
       .from(queueEntries)
@@ -90,14 +226,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateEntryStatus(id: number, status: string): Promise<void> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     await db.update(queueEntries).set({ status }).where(eq(queueEntries.id, id));
   }
 
   async removeEntry(id: number): Promise<void> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     await db.delete(queueEntries).where(eq(queueEntries.id, id));
   }
 
   async getNowPlaying(roomCode: string): Promise<QueueEntry | undefined> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     const [entry] = await db
       .select()
       .from(queueEntries)
@@ -106,6 +254,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async skipToNext(roomCode: string): Promise<QueueEntry | undefined> {
+    if (!db) {
+      throw new Error("Database is not configured");
+    }
+
     const current = await this.getNowPlaying(roomCode);
     if (current) {
       await this.updateEntryStatus(current.id, "played");
@@ -123,4 +275,4 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage: IStorage = hasDatabase ? new DatabaseStorage() : new MemoryStorage();
