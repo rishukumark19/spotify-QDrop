@@ -99,6 +99,8 @@ Why this setup:
 - Render supports a long-running Node server and WebSockets.
 - Neon keeps the existing PostgreSQL + Drizzle stack intact.
 
+For the exact website-side setup steps, use [DEPLOYMENT.md](/D:/coding/projects/spotify-QDrop/DEPLOYMENT.md).
+
 ## Deploy Frontend on Vercel
 
 Use the repo root as the project root.
