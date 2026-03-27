@@ -8,6 +8,10 @@ Whether it's a **gym, café, office, or a house party**, QDrop bridges the gap b
 
 ## 🚀 Why QDrop? (Beyond Spotify Jam)
 
+> [!TIP]
+> **v1.1 Update: Listen Along is here!**
+> We've just upgraded QDrop to support **Remote Synchronization**. Now, remote guests can connect their own Spotify accounts to a room and listen to the host's playback in real-time. Whether it's a long-distance jam or a private radio show, QDrop keeps everyone in sync.
+
 While Spotify Jam is great for small groups of friends with Premium accounts, QDrop is built for **venues and public spaces**.
 
 | Feature | Spotify Jam | QDrop |
