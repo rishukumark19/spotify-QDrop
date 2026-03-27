@@ -1,318 +1,93 @@
-# QDrop
+# 🎵 QDrop: The Venue-Grade Shared Music Queue
 
-QDrop is a shared music queue app for real rooms: gyms, parties, offices, studios, and anywhere one device controls the speakers while everyone else wants input.
+**QDrop** is not just a Spotify wrapper. It's a full-stack, real-time "social brain" for your speakers, designed for shared spaces where one person owns the audio but everyone wants a say.
 
-The host creates a room, shares a QR code or room code, and guests join from their own phone to add tracks. Spotify is only required on the host side for real playback.
+Whether it's a **gym, café, office, or a house party**, QDrop bridges the gap between the host's Premium account and the crowd's requests—without requiring guests to even have a Spotify account.
 
-## What It Does
+---
 
-- Create a live room with a short join code
-- Let guests join from a phone without taking over the host device
-- Search songs and add them to a shared queue
-- Limit each guest to 3 queued songs
-- Show queue updates in real time with WebSockets
-- Connect Spotify on the host device for real playback
-- Control play, pause, and skip from the host view
+## 🚀 Why QDrop? (Beyond Spotify Jam)
 
-## Product Model
+While Spotify Jam is great for small groups of friends with Premium accounts, QDrop is built for **venues and public spaces**.
 
-- Guests do not need Spotify login
-- The host connects one Spotify Premium account
-- Search can still work without host auth through Spotify client-credentials or fallback mock data
-- Real playback requires:
-  - valid Spotify credentials on the backend
-  - a host Spotify login
-  - an active playback device in the host browser
+| Feature | Spotify Jam | QDrop |
+| :--- | :---: | :---: |
+| **Guest Requirements** | Spotify App + Account | **Mobile Browser Only** |
+| **Account Tier** | Usually Premium for all | **Only Host needs Premium** |
+| **Moderation** | Limited | **Host-only controls & limits** |
+| **Fairness** | Auto-ordered | **Custom per-user queue limits** |
+| **Public Use** | Difficult to manage | **QR Code + Join Code ready** |
+| **Persistence** | Dissolves after session | **Trackable room history & stats** |
 
-## Stack
+---
 
-- Frontend: React 18 + TypeScript + Vite
-- Routing: Wouter with hash-based routes
-- Styling: Tailwind CSS + shadcn/ui
-- Backend: Express 5 + TypeScript
-- Realtime: native `ws`
-- Database: PostgreSQL + Drizzle ORM
-- Build output:
-  - client: `dist/public`
-  - server: `dist/index.cjs`
+## 🔥 Killer Use-Cases
 
-## Project Structure
+1.  **🏋️ Gym / Café Request Box**: Put a QR code on the wall. Customers drop songs without logging in. The host uses smart filters to keep the vibe clean.
+2.  **🕙 Office Focus Radio**: Teammates suggest songs, but the host maintains control to avoid repeats and enforce "lo-fi only" focus blocks.
+3.  **🏠 Flatmate / Hostel Speaker**: A persistent room with play history and soft limits so one person can’t hijack the queue all night.
+4.  **🎮 Gaming / Discord Rooms**: Remote groups can sync the vibe while only the "Streamer" needs the actual playback active.
+5.  **🎧 Listen Along (New!)**: Remote guests can sync their own Spotify accounts to the host's session, perfect for "Remote Jams" or shared listening parties.
 
-```text
-client/          React frontend
-server/          Express API, Spotify OAuth, WebSocket server
-shared/          Shared Drizzle schema and inferred types
-script/build.ts  Production build script
-render.yaml      Render backend config
-vercel.json      Vercel frontend config
-```
+---
 
-## Quick Start
+## ✨ Core Capabilities
 
-### Option 1: Run fast without caring about Spotify yet
+### 🛠️ The Product Model: Owner ≠ Audience
+QDrop models a **DJ + Crowd** dynamic. 
+- **The Host**: Connects one Spotify Premium account to power the real audio. They control volume, skipping, and room settings from a dedicated dashboard.
+- **The Guests**: Join via a short code or QR. They can search the entire Spotify catalog and add songs without any login or app installation.
 
-This is the fastest way to test the UI and room flow.
+### 🧠 Smart Features
+- **Listen Along Mode**: Optional real-time playback synchronization for remote guests.
+- **Real-Time Synchronization**: Powered by native WebSockets for instant queue updates across all devices.
+- **Fairness Engine**: Hard limits on guest contributions (e.g., max 3 songs per guest) to ensure everyone gets a turn.
+- **Auth-Free Search**: Guests can search for tracks using Spotify's catalog even if the host hasn't authenticated yet (via client-credentials fallback).
+- **Resilient Infrastructure**: Automatic fallback to in-memory storage if the database is unavailable for local development.
 
-1. Install dependencies:
+---
 
-```bash
-npm install
-```
+## 🛠️ Tech Stack & Architecture
 
-2. Copy env file:
+QDrop is a production-minded project with a single-repo, multi-package feel.
 
-```bash
-copy .env.example .env
-```
+- **Frontend**: React 18 + TypeScript + Vite (Fast, typed, and modern)
+- **Styling**: Tailwind CSS + shadcn/ui + **Framer Motion** (Premium, highly animated interface)
+- **Backend**: Express 5 + TypeScript (Robust API & OAuth handling)
+- **Database**: PostgreSQL + Drizzle ORM (Type-safe migrations and queries)
+- **Real-Time**: Native `ws` (Lowest latency for queue updates)
+- **Infra**: Designed for the Vercel (Frontend) + Render (Backend) + Neon (DB) split.
 
-3. Start the app:
+---
 
-```bash
-npm run dev
-```
+## 🛤️ Roadmap: Moving Beyond the "Control Wrapper"
+- [x] **Listen Along Sync**: Real-time playback synchronization for remote listeners.
+- [ ] **Smart Fairness Queue**: Round-robin weighting so everyone gets a turn automatically.
+- [ ] **Live Voting Bar**: Songs float up/down based on guest votes.
+- [ ] **Vibe Meter**: Visual energy/danceability metrics of the current queue.
+- [ ] **Persistent Stats**: "Top 50 all-time" room playlists and "Discovery of the Day" charts.
 
-4. Open:
+---
 
-```text
-http://127.0.0.1:5000
-```
+## 🏁 Quick Start
 
-Notes:
-- If local Postgres is unavailable, the app now falls back to in-memory storage for local development.
-- Room creation, joining, and queue behavior still work in this mode.
-- Real Spotify playback will not work until credentials and Spotify auth are configured.
+### ⚡ Option 1: Fast Start (No Spotify required)
+The fastest way to test the UI and room flow.
+1. `npm install`
+2. `copy .env.example .env`
+3. `npm run dev`
+4. Open `http://127.0.0.1:5000`
 
-### Option 2: Full local setup with Spotify
+### 🎧 Option 2: Full Local Setup (Spotify Playback)
+1. Follow Option 1.
+2. Create an app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
+3. Set your `.env` variables (IDs, Secrets, and Redirects).
+4. Run `npm run db:push` to apply the schema.
+5. Add your Spotify account as a **Test User** in the Spotify dashboard.
 
-1. Install dependencies:
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rishukumark19/spotify-QDrop)
 
-```bash
-npm install
-```
+---
 
-2. Copy env file:
-
-```bash
-copy .env.example .env
-```
-
-3. Set up environment variables:
-
-- `SPOTIFY_CLIENT_ID`
-- `SPOTIFY_CLIENT_SECRET`
-- `SPOTIFY_REDIRECT_URI=http://127.0.0.1:5000/api/spotify/callback`
-- `PUBLIC_APP_URL=http://127.0.0.1:5000`
-- `CLIENT_ORIGIN=http://127.0.0.1:5000,http://localhost:5000`
-
-4. If using Postgres, set:
-
-- `DATABASE_URL=postgres://postgres:postgres@localhost:5432/qdrop`
-
-5. Apply schema:
-
-```bash
-npm run db:push
-```
-
-6. Start app:
-
-```bash
-npm run dev
-```
-
-7. In Spotify Developer Dashboard:
-
-- add redirect URI:
-  - `http://127.0.0.1:5000/api/spotify/callback`
-- if the app is in Development mode, add your Spotify account as a test user
-
-## Environment Variables
-
-### Core
-
-- `NODE_ENV`: `development` or `production`
-- `PORT`: defaults to `5000`
-- `PUBLIC_APP_URL`: frontend URL used after Spotify OAuth callback
-- `CLIENT_ORIGIN`: allowed frontend origin(s), comma-separated
-
-### Database
-
-- `DATABASE_URL`: PostgreSQL connection string
-- `DATABASE_SSL`: `true` when hosted Postgres requires SSL
-
-### Spotify
-
-- `SPOTIFY_CLIENT_ID`
-- `SPOTIFY_CLIENT_SECRET`
-- `SPOTIFY_REDIRECT_URI`
-
-### Frontend API Targeting
-
-- `VITE_API_BASE_URL`
-
-Use `VITE_API_BASE_URL` when the frontend and backend run on different hosts, such as:
-- frontend on Vercel
-- backend on Render
-
-## Scripts
-
-- `npm run dev`: start Express with Vite middleware for local development
-- `npm run build`: build both client and server for production
-- `npm run build:client`: build only the frontend
-- `npm run start`: run the production server from `dist/index.cjs`
-- `npm run check`: TypeScript type-check
-- `npm run db:push`: apply Drizzle schema
-
-## Local Development Notes
-
-- Use `127.0.0.1` instead of `localhost` for Spotify redirect URIs when testing locally
-- If port `5000` is busy:
-
-```powershell
-$env:PORT='5001'
-npm run dev
-```
-
-- If you change `.env`, restart the server fully
-- Guests can still test queue behavior without Spotify auth
-- Spotify auth success is not enough by itself; the host also needs a playback device active in-browser
-
-## Deployment
-
-Recommended split:
-
-- Frontend: Vercel
-- Backend: Render
-- Database: Neon Postgres
-
-Why this setup:
-
-- Vercel fits the Vite frontend well
-- Render handles the long-running Express server and WebSockets
-- Neon keeps the current PostgreSQL + Drizzle architecture intact
-
-For detailed deployment steps, use [DEPLOYMENT.md](D:/coding/projects/spotify-QDrop/DEPLOYMENT.md).
-
-### Vercel Frontend
-
-Use the repo root as project root.
-
-Settings:
-
-- Build Command: `npm run build:client`
-- Output Directory: `dist/public`
-- Install Command: `npm install`
-
-Set:
-
-- `VITE_API_BASE_URL=https://your-render-service.onrender.com`
-
-### Render Backend
-
-Use the repo root as service root.
-
-Settings:
-
-- Build Command: `npm ci && npm run build && npm run db:push`
-- Start Command: `npm start`
-- Health Check Path: `/api/health`
-
-Set:
-
-- `NODE_ENV=production`
-- `DATABASE_URL=postgres://...`
-- `DATABASE_SSL=true`
-- `PUBLIC_APP_URL=https://qdrop.live`
-- `CLIENT_ORIGIN=https://qdrop.live,https://www.qdrop.live`
-- `SPOTIFY_CLIENT_ID=...`
-- `SPOTIFY_CLIENT_SECRET=...`
-- `SPOTIFY_REDIRECT_URI=https://spotify-qdrop.onrender.com/api/spotify/callback`
-
-### Spotify Production Requirement
-
-Spotify redirect URIs must match exactly.
-
-Example production callback:
-
-```text
-https://spotify-qdrop.onrender.com/api/spotify/callback
-```
-
-If the Spotify app stays in Development mode:
-- the Spotify account used for login must be explicitly added as a test user
-
-## Recent Production Fixes
-
-- local room creation now works even if Postgres is unavailable
-- Spotify callback failures are now logged more clearly
-- Spotify token expiry is stored in Unix seconds so it fits the current Postgres integer column
-- host route sanitizes room codes so auth query strings do not corrupt the UI
-- homepage includes working `How It Works` and `About Us` links
-
-## Known Operational Gotchas
-
-- Render free services may cold start
-- Vercel Hobby can block auto deploys if the committer cannot be matched to the owning GitHub/Vercel account
-- Spotify login failures are often caused by one of:
-  - wrong client secret
-  - redirect URI mismatch
-  - missing Spotify test-user access
-  - backend failing to save token state
-
-## What it does 
-Core product behavior
-Creates a live room with a short join code where one device is the host controlling the actual speakers.
-
-Lets guests join from their own phones (via code/QR) to interact with the room without taking over the host device.
-
-Lets guests search for songs and add them to a shared queue that everyone in the room sees.
-
-Enforces a rule that each guest can have at most 3 songs queued at a time.
-
-Shows real‑time queue updates using WebSockets so everyone sees changes instantly.
-
-On the host side, connects to Spotify for real playback so the shared queue actually drives Spotify.
-
-Gives the host controls to play, pause, and skip from a dedicated host view.
-
-Product model and capabilities
-Guests do not need any Spotify login; they just join the room and use your UI.
-
-The host connects one Spotify Premium account that powers playback.
-
-Search still works without host auth, using Spotify client‑credentials or fallback mock data, so you can demo the app without full Spotify setup.
-
-Real playback requires: valid Spotify credentials stored on the backend, a host logged into Spotify, and an active playback device in the host’s browser.
-
-Tech stack and architecture
-Frontend: React 18 + TypeScript + Vite, with Wouter (hash‑based routing) and Tailwind + shadcn/ui for styling and components.
-
-Backend: Express 5 + TypeScript, handling REST API, Spotify OAuth, and WebSocket server.
-
-Realtime: native ws for room and queue updates.
-
-Database: PostgreSQL + Drizzle ORM, with a shared schema package used by both client and server.
-
-Build: single repo that builds client to dist/public and server to dist/index.cjs for production.
-
-Dev and fallback behavior
-Has a “fast local run” mode where, if Postgres is unavailable, the app falls back to in‑memory storage, so room creation/joining/queue still work.
-
-Provides a full local Spotify setup guide, including env vars, redirect URI, and Drizzle migration (npm run db:push).
-
-Guests can test queue behavior even without Spotify auth, which makes development and demos smoother.
-
-Deployment and operations
-Designed for Vercel frontend + Render backend + Neon Postgres as the recommended production setup.
-
-Includes render.yaml, vercel.json, deployment scripts, and specific env‑var patterns for this split.
-
-Handles Spotify token expiry correctly (stored as Unix seconds to match your Postgres column).
-
-Has small production fixes: sanitizing host routes so Spotify auth query strings don’t break the UI, working “How It Works” and “About Us” links, clearer Spotify callback error logging.
-
-Documents common operational gotchas: Render cold starts, Vercel Hobby limitations, and typical Spotify login misconfigurations (wrong secret, redirect mismatch, missing test‑user access, backend token save issues).
-
-## License
-
-MIT
+## 🛡️ License
+MIT. Built with ❤️ for better shared audio.
