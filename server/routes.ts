@@ -325,12 +325,11 @@ export async function registerRoutes(
       return res.status(400).json({ error: "Spotify credentials not configured" });
     }
 
-    const redirectUri = isGuest 
-      ? `${getRequestOrigin(req)}/api/spotify/guest-callback`
-      : getSpotifyRedirectUri(req);
-      
+    // Always use the primary callback URI for reliability and to match Spotify dashboard config
+    const redirectUri = getSpotifyRedirectUri(req);
     const scopes = "streaming user-read-email user-read-private user-modify-playback-state user-read-playback-state";
-    const state = roomCode || "";
+    // Encode guest status into the state parameter
+    const state = isGuest ? `${roomCode}:guest` : roomCode || "";
 
     const authUrl = `https://accounts.spotify.com/authorize?${new URLSearchParams({
       response_type: "code",
@@ -345,8 +344,12 @@ export async function registerRoutes(
   });
 
   app.get("/api/spotify/callback", async (req, res) => {
+    // Parse State
     const code = req.query.code as string;
-    const roomCode = (req.query.state as string)?.toUpperCase();
+    const rawState = req.query.state as string;
+    const isGuest = rawState?.includes(":guest");
+    const roomCode = (isGuest ? rawState.split(":")[0] : rawState)?.toUpperCase();
+    
     const redirectUri = getSpotifyRedirectUri(req);
     const publicAppUrl = getPublicAppUrl(req);
 
@@ -381,6 +384,13 @@ export async function registerRoutes(
       }
 
       const tokenData = await tokenRes.json();
+
+      if (isGuest) {
+        // For guests, we redirect them back to the room with the token in the fragment
+        // so their client-side session picks it up. We do NOT save it to the DB.
+        return res.redirect(`${publicAppUrl}/#/room/${roomCode}?spotify_token=${tokenData.access_token}&refresh_token=${tokenData.refresh_token}&expires_in=${tokenData.expires_in}`);
+      }
+
       await storage.updateRoomSpotifyToken(
         roomCode,
         tokenData.access_token,
@@ -627,6 +637,26 @@ export async function registerRoutes(
       status: "queued",
       addedAt: new Date(),
     });
+
+    // Auto-play if queue was empty and there's no nowPlaying song
+    const currentNowPlaying = await storage.getNowPlaying(roomCode);
+    if (!currentNowPlaying && room.spotifyToken && room.spotifyDeviceId) {
+      try {
+        const token = await getValidToken(roomCode);
+        if (token) {
+          await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${room.spotifyDeviceId}`, {
+            method: "PUT",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ uris: [body.data.spotifyUri] }),
+          });
+          // Update DB state
+          await storage.updateEntryStatus(entry.id, "playing", new Date(), 0);
+          broadcastToRoom(roomCode, { type: "playback_update", isPlaying: true });
+        }
+      } catch (err) {
+        console.error("Auto-play failed", err);
+      }
+    }
 
     // Broadcast queue update
     broadcastToRoom(roomCode, { type: "queue_update" });

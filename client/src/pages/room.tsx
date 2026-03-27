@@ -113,7 +113,7 @@ export default function Room() {
     const hash = window.location.hash || "";
     const queryString = hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : "";
     const searchParams = new URLSearchParams(queryString || window.location.search);
-    const token = searchParams.get("guest_token");
+    const token = searchParams.get("spotify_token");
     if (token) {
       setGuestToken(token);
       localStorage.setItem(`spotify_token_${code}`, token);
@@ -388,25 +388,35 @@ export default function Room() {
           <AboutOverlay initialOpen={isFirstVisit} />
         </div>
 
-        <header className="text-center mb-12 w-full animate-in fade-in slide-in-from-top-4 duration-500 relative z-10">
-          <div className="w-24 h-24 rounded-[2rem] bg-primary flex items-center justify-center mx-auto mb-6 shadow-[0_20px_50px_rgba(29,185,84,0.3)] rotate-3 hover:rotate-0 transition-transform duration-500">
-            <Music className="w-12 h-12 text-primary-foreground" />
+        <header className="text-center mb-6 w-full animate-in fade-in slide-in-from-top-4 duration-500 relative z-10">
+          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4 shadow-[0_10px_30px_rgba(29,185,84,0.3)] rotate-3 hover:rotate-0 transition-transform duration-500">
+            <Music className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-black text-foreground tracking-tighter leading-none mb-2">Welcome to {roomData.name}</h1>
+          <h1 className="text-2xl font-black text-foreground tracking-tighter leading-none mb-1">Welcome to {roomData.name}</h1>
           <div className="flex items-center justify-center gap-3">
             <span className="px-3 py-1 bg-card border border-border/50 text-muted-foreground rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
               Code: <span className="text-primary">{code}</span>
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            <span className="text-[10px] items-center font-black uppercase tracking-widest text-muted-foreground/60">Live Party</span>
+            <span className="text-[10px] items-center font-black uppercase tracking-widest text-muted-foreground/60 leading-none">Live Party</span>
           </div>
         </header>
 
+        <div className="absolute top-6 left-6 z-50">
+          <button 
+            onClick={() => navigate("/")}
+            className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors group"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-1" />
+            Home
+          </button>
+        </div>
+
         {/* Main Grid: Priority Choices with Vibrant Cards */}
-        <div className="grid gap-6 w-full max-w-[400px] relative z-10 px-2">
+        <div className="grid gap-4 w-full max-w-[400px] relative z-10 px-2">
           <button 
             onClick={() => setJoinMode("control")}
-            className="group relative overflow-hidden bg-gradient-to-br from-card to-card/50 backdrop-blur-md p-8 rounded-[2.5rem] border-2 border-border/10 text-left transition-all hover:scale-[1.02] active:scale-[0.98] hover:border-primary/40 shadow-xl"
+            className="group relative overflow-hidden bg-gradient-to-br from-card to-card/50 backdrop-blur-md p-6 rounded-[2.5rem] border-2 border-border/10 text-left transition-all hover:scale-[1.02] active:scale-[0.98] hover:border-primary/40 shadow-xl"
           >
             {/* Background Glow */}
             <div className="absolute -right-4 -top-4 w-32 h-32 bg-primary/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -431,7 +441,7 @@ export default function Room() {
 
           <button 
             onClick={connectSpotify}
-            className="group relative overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5 backdrop-blur-md p-8 rounded-[2.5rem] border-2 border-primary/30 text-left transition-all hover:scale-[1.02] active:scale-[0.98] hover:border-primary/60 shadow-lg shadow-primary/5"
+            className="group relative overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5 backdrop-blur-md p-6 rounded-[2.5rem] border-2 border-primary/30 text-left transition-all hover:scale-[1.02] active:scale-[0.98] hover:border-primary/60 shadow-lg shadow-primary/5"
           >
             <div className="absolute -right-4 -top-4 w-32 h-32 bg-primary/20 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
             
@@ -485,6 +495,16 @@ export default function Room() {
                     </button>
                   </>
                 )}
+                <div className="flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity ml-auto">
+                  <span className="w-1 h-1 rounded-full bg-border" />
+                  <button 
+                    onClick={() => setJoinMode(null)}
+                    className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-all flex items-center gap-1 group"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5 transition-transform group-hover:-rotate-45" />
+                    Mode
+                  </button>
+                </div>
               </div>
             </div>
           </div>
