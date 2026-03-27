@@ -284,6 +284,14 @@ export async function registerRoutes(
       });
 
       if (!tokenRes.ok) {
+        const errorText = await tokenRes.text();
+        console.error("Spotify token exchange failed", {
+          status: tokenRes.status,
+          statusText: tokenRes.statusText,
+          roomCode,
+          redirectUri,
+          body: errorText,
+        });
         return res.redirect(`${publicAppUrl}/#/host/${roomCode}?error=token_failed`);
       }
 
@@ -298,6 +306,11 @@ export async function registerRoutes(
       // Redirect back to host page
       res.redirect(`${publicAppUrl}/#/host/${roomCode}?spotify=connected`);
     } catch (err) {
+      console.error("Spotify callback auth error", {
+        roomCode,
+        redirectUri,
+        error: err instanceof Error ? err.message : String(err),
+      });
       res.redirect(`${publicAppUrl}/#/host/${roomCode}?error=auth_error`);
     }
   });
