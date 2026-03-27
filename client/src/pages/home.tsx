@@ -154,10 +154,10 @@ export default function Home() {
                   Room Name
                 </label>
                 <Input
-                  placeholder="e.g. My Awesome Session"
+                  placeholder="Friday Night Jam 🎧"
                   value={roomName}
                   onChange={(e) => setRoomName(e.target.value)}
-                  className="bg-background border-border h-14 text-foreground placeholder:text-muted-foreground/30 text-center text-sm font-medium rounded-2xl"
+                  className="bg-background border-border h-14 text-foreground placeholder:text-muted-foreground/30 text-center text-sm font-medium rounded-2xl focus:ring-primary/40 focus:border-primary/60 transition-all"
                   maxLength={50}
                   data-testid="input-room-name"
                 />
