@@ -1,0 +1,6 @@
+{
+  "key": "VITE_API_BASE_URL",
+  "value": "https://spotify-qdrop.onrender.com",
+  "type": "plain",
+  "target": ["production", "preview", "development"]
+}
