@@ -8,6 +8,11 @@ import { WebSocketServer, WebSocket } from "ws";
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || "";
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || "";
 const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI?.trim() || "";
+const TOKEN_EXPIRY_BUFFER_SECONDS = 60;
+
+function getUnixTimeSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
@@ -128,8 +133,8 @@ async function getValidToken(roomCode: string): Promise<string | null> {
   const room = await storage.getRoomByCode(roomCode);
   if (!room?.spotifyToken) return null;
 
-  // Check if token is expired (with 60s buffer)
-  if (room.spotifyTokenExpiry && Date.now() > (room.spotifyTokenExpiry - 60000)) {
+  // Stored as unix seconds so it fits in the existing integer column.
+  if (room.spotifyTokenExpiry && getUnixTimeSeconds() > (room.spotifyTokenExpiry - TOKEN_EXPIRY_BUFFER_SECONDS)) {
     if (room.spotifyRefreshToken) {
       const refreshed = await refreshSpotifyToken(room.spotifyRefreshToken);
       if (refreshed) {
@@ -137,7 +142,7 @@ async function getValidToken(roomCode: string): Promise<string | null> {
           roomCode,
           refreshed.access_token,
           room.spotifyRefreshToken,
-          Date.now() + refreshed.expires_in * 1000
+          getUnixTimeSeconds() + refreshed.expires_in
         );
         return refreshed.access_token;
       }
@@ -300,7 +305,7 @@ export async function registerRoutes(
         roomCode,
         tokenData.access_token,
         tokenData.refresh_token,
-        Date.now() + tokenData.expires_in * 1000
+        getUnixTimeSeconds() + tokenData.expires_in
       );
 
       // Redirect back to host page
