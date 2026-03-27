@@ -259,6 +259,60 @@ If the Spotify app stays in Development mode:
   - missing Spotify test-user access
   - backend failing to save token state
 
+## What it does 
+Core product behavior
+Creates a live room with a short join code where one device is the host controlling the actual speakers.
+
+Lets guests join from their own phones (via code/QR) to interact with the room without taking over the host device.
+
+Lets guests search for songs and add them to a shared queue that everyone in the room sees.
+
+Enforces a rule that each guest can have at most 3 songs queued at a time.
+
+Shows real‑time queue updates using WebSockets so everyone sees changes instantly.
+
+On the host side, connects to Spotify for real playback so the shared queue actually drives Spotify.
+
+Gives the host controls to play, pause, and skip from a dedicated host view.
+
+Product model and capabilities
+Guests do not need any Spotify login; they just join the room and use your UI.
+
+The host connects one Spotify Premium account that powers playback.
+
+Search still works without host auth, using Spotify client‑credentials or fallback mock data, so you can demo the app without full Spotify setup.
+
+Real playback requires: valid Spotify credentials stored on the backend, a host logged into Spotify, and an active playback device in the host’s browser.
+
+Tech stack and architecture
+Frontend: React 18 + TypeScript + Vite, with Wouter (hash‑based routing) and Tailwind + shadcn/ui for styling and components.
+
+Backend: Express 5 + TypeScript, handling REST API, Spotify OAuth, and WebSocket server.
+
+Realtime: native ws for room and queue updates.
+
+Database: PostgreSQL + Drizzle ORM, with a shared schema package used by both client and server.
+
+Build: single repo that builds client to dist/public and server to dist/index.cjs for production.
+
+Dev and fallback behavior
+Has a “fast local run” mode where, if Postgres is unavailable, the app falls back to in‑memory storage, so room creation/joining/queue still work.
+
+Provides a full local Spotify setup guide, including env vars, redirect URI, and Drizzle migration (npm run db:push).
+
+Guests can test queue behavior even without Spotify auth, which makes development and demos smoother.
+
+Deployment and operations
+Designed for Vercel frontend + Render backend + Neon Postgres as the recommended production setup.
+
+Includes render.yaml, vercel.json, deployment scripts, and specific env‑var patterns for this split.
+
+Handles Spotify token expiry correctly (stored as Unix seconds to match your Postgres column).
+
+Has small production fixes: sanitizing host routes so Spotify auth query strings don’t break the UI, working “How It Works” and “About Us” links, clearer Spotify callback error logging.
+
+Documents common operational gotchas: Render cold starts, Vercel Hobby limitations, and typical Spotify login misconfigurations (wrong secret, redirect mismatch, missing test‑user access, backend token save issues).
+
 ## License
 
 MIT
