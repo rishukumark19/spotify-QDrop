@@ -95,7 +95,17 @@ export default function Room() {
   const [isSearching, setIsSearching] = useState(false);
   const [guestToken, setGuestToken] = useState<string | null>(localStorage.getItem(`spotify_token_${code}`));
   const [joinMode, setJoinMode] = useState<"control" | "listen" | null>(null);
+  const [activeDeviceName, setActiveDeviceName] = useState<string | null>(null);
+  const [isFirstVisit, setIsFirstVisit] = useState(false);
   const [isSynced, setIsSynced] = useState(false);
+
+  useEffect(() => {
+    const visited = localStorage.getItem("qdrop_visited");
+    if (!visited) {
+      setIsFirstVisit(true);
+      localStorage.setItem("qdrop_visited", "true");
+    }
+  }, []);
   const lastSyncRef = useRef<number>(0);
 
   // Parse token from URL if returned from callback
@@ -201,6 +211,7 @@ export default function Room() {
       const drift = Math.abs(currentPosition - positionMs);
       const deviceId = data.device?.id;
       const deviceName = data.device?.name;
+      setActiveDeviceName(deviceName || null);
 
       if (currentTrackId !== trackId || drift > 3000 || force) {
         reportStatus("catching_up", deviceId, deviceName);
@@ -374,7 +385,7 @@ export default function Room() {
         
         {/* Floating Info Pill */}
         <div className="absolute top-6 right-6 z-50">
-          <AboutOverlay />
+          <AboutOverlay initialOpen={isFirstVisit} />
         </div>
 
         <header className="text-center mb-12 w-full animate-in fade-in slide-in-from-top-4 duration-500 relative z-10">
@@ -457,17 +468,24 @@ export default function Room() {
             <h1 className="text-sm font-semibold text-foreground">{roomData.name}</h1>
             <div className="flex flex-col items-center">
               <div className="flex items-center justify-center gap-1.5 leading-none">
-                <p className="text-[10px] text-muted-foreground font-mono">{code}</p>
+                <p className="text-[10px] text-muted-foreground font-mono uppercase bg-muted px-1 rounded-sm">{code}</p>
                 <span className="w-1 h-1 rounded-full bg-border" />
-                <p className="text-[10px] font-bold text-primary tracking-tight">
-                  {joinMode === "listen" ? "Listening on Spotify" : "Add Songs Only"}
+                <p className="text-[10px] font-black text-primary tracking-tight uppercase">
+                  {joinMode === "listen" ? "Listening Along" : "Control Only"}
                 </p>
+                {joinMode === "listen" && (
+                  <>
+                    <span className="w-1 h-1 rounded-full bg-border" />
+                    <button 
+                      onClick={() => setShowDevicePicker(true)}
+                      className="text-[10px] font-bold text-muted-foreground hover:text-primary transition-all flex items-center gap-1"
+                    >
+                      {activeDeviceName ? <span>on {activeDeviceName}</span> : <span>Pick Device</span>}
+                      <span className="bg-primary/10 text-primary px-1 rounded-sm text-[8px] uppercase tracking-tighter">Change</span>
+                    </button>
+                  </>
+                )}
               </div>
-              <p className="text-[9px] text-muted-foreground mt-1">
-                {joinMode === "listen"
-                  ? "You're hearing exactly what the host plays."
-                  : "Audio is on host's speakers."}
-              </p>
             </div>
           </div>
           <AboutOverlay />

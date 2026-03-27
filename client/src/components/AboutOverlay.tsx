@@ -9,9 +9,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Info, Music, Headphones, Users, Mic2, X } from "lucide-react";
 
-export function AboutOverlay() {
+export function AboutOverlay({ initialOpen = false }: { initialOpen?: boolean }) {
   return (
-    <Dialog>
+    <Dialog defaultOpen={initialOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" className="w-10 h-10 rounded-full bg-card/40 border border-border/40 text-muted-foreground hover:text-primary transition-all shadow-sm">
           <Info className="w-5 h-5" />

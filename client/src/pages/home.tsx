@@ -170,7 +170,7 @@ export default function Home() {
                   Room Name
                 </label>
                 <Input
-                  placeholder="e.g. Gym Beats 🏋️, Club Night 🌙, House Party 🏠"
+                  placeholder="e.g. Gym Beats 🏋️, Club Night 🌙, Office Focus 🎧"
                   value={roomName}
                   onChange={(e) => setRoomName(e.target.value)}
                   className="bg-black/20 border-border h-14 text-foreground placeholder:text-muted-foreground/40 text-center text-sm font-semibold rounded-2xl focus:ring-primary/40 focus:border-primary/60 transition-all border-dashed"

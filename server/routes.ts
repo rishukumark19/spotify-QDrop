@@ -320,11 +320,15 @@ export async function registerRoutes(
   // === Spotify OAuth ===
   app.get("/api/spotify/auth", (req, res) => {
     const roomCode = req.query.room as string;
+    const isGuest = req.query.guest === "true";
     if (!SPOTIFY_CLIENT_ID) {
       return res.status(400).json({ error: "Spotify credentials not configured" });
     }
 
-    const redirectUri = getSpotifyRedirectUri(req);
+    const redirectUri = isGuest 
+      ? `${getRequestOrigin(req)}/api/spotify/guest-callback`
+      : getSpotifyRedirectUri(req);
+      
     const scopes = "streaming user-read-email user-read-private user-modify-playback-state user-read-playback-state";
     const state = roomCode || "";
 
@@ -334,7 +338,7 @@ export async function registerRoutes(
       scope: scopes,
       redirect_uri: redirectUri,
       state,
-      show_dialog: "true",
+      show_dialog: "false", // Smoother for returning users
     })}`;
 
     res.json({ authUrl });
