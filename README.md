@@ -65,11 +65,15 @@ QDrop is a production-minded project with a single-repo, multi-package feel.
 ---
 
 ## 🛤️ Roadmap: Moving Beyond the "Control Wrapper"
-- [x] **Listen Along Sync**: Real-time playback synchronization for remote listeners.
+- [x] **Listen Along Sync (v1.1)**: Real-time playback synchronization for remote listeners.
+- [ ] **Guest Device Picker (v1.2)**: Allow guests to choose their sync device (phone, browser, or desktop).
+- [ ] **Advanced Listener Stats**: Real-time count of "Synced" vs "Control-only" guests in the room header.
+- [ ] **Host "Hard Sync"**: A dedicated button to force a resync across all remote listeners.
 - [ ] **Smart Fairness Queue**: Round-robin weighting so everyone gets a turn automatically.
 - [ ] **Live Voting Bar**: Songs float up/down based on guest votes.
 - [ ] **Vibe Meter**: Visual energy/danceability metrics of the current queue.
-- [ ] **Persistent Stats**: "Top 50 all-time" room playlists and "Discovery of the Day" charts.
+- [ ] **Room Presets**: Quick-start modes for "Physical Venue" vs "Remote DJ Session".
+- [ ] **Scheduled Sessions**: Set a room to go live at a future time.
 
 ---
 
