@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: qdrop-api
+    name: spotify-qdrop
     runtime: node
     plan: free
     buildCommand: npm ci --include=dev && npm run build

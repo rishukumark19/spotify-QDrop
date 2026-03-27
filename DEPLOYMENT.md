@@ -12,15 +12,12 @@ This keeps the existing stack intact:
 - Express + WebSocket backend
 - PostgreSQL + Drizzle
 
-## What You Need To Do On Websites
+## Current Production Shape
 
-You still need to do these website-side actions yourself:
-
-1. Create a Neon project and copy the Postgres connection string.
-2. Create a Render web service from this GitHub repo.
-3. Create a Vercel project from this GitHub repo.
-4. Rotate your Spotify client secret if the old one was exposed.
-5. Add the correct Spotify redirect URI in the Spotify developer dashboard.
+- Frontend: Vercel, custom domain `qdrop.live`
+- Backend: Render web service
+- Database: Neon Postgres
+- Spotify OAuth callback: Render backend URL
 
 ## 1. Neon
 
@@ -44,7 +41,7 @@ Create a new Render Web Service:
 - Runtime: `Node`
 - Instance type: `Free`
 
-Render will pick up [render.yaml](/D:/coding/projects/spotify-QDrop/render.yaml).
+Render will pick up [render.yaml](./render.yaml).
 
 ### Render environment variables
 
@@ -54,10 +51,10 @@ Set these in the Render dashboard:
 NODE_ENV=production
 DATABASE_URL=<your Neon connection string>
 DATABASE_SSL=true
-PUBLIC_APP_URL=https://<your-vercel-project>.vercel.app
-CLIENT_ORIGIN=https://<your-vercel-project>.vercel.app
+PUBLIC_APP_URL=https://qdrop.live
+CLIENT_ORIGIN=https://qdrop.live,https://www.qdrop.live
 SPOTIFY_CLIENT_ID=<your spotify client id>
-SPOTIFY_CLIENT_SECRET=<your rotated spotify client secret>
+SPOTIFY_CLIENT_SECRET=<your spotify client secret>
 SPOTIFY_REDIRECT_URI=https://<your-render-service>.onrender.com/api/spotify/callback
 ```
 
@@ -78,7 +75,7 @@ https://<your-render-service>.onrender.com
 
 ## 3. Vercel Frontend
 
-Create a Vercel project from the same GitHub repo.
+The Vercel project is already created and serving the frontend.
 
 The repo already includes [vercel.json](/D:/coding/projects/spotify-QDrop/vercel.json), so the frontend should use:
 
@@ -93,36 +90,37 @@ Set this in Vercel:
 VITE_API_BASE_URL=https://<your-render-service>.onrender.com
 ```
 
-After deploy, copy your frontend URL:
+The custom domains already added to the project are:
 
 ```text
-https://<your-vercel-project>.vercel.app
+https://qdrop.live
+https://www.qdrop.live
 ```
 
-Then update Render:
+At your DNS provider, point both hosts to Vercel:
 
 ```text
-PUBLIC_APP_URL=https://<your-vercel-project>.vercel.app
-CLIENT_ORIGIN=https://<your-vercel-project>.vercel.app
+A qdrop.live 76.76.21.21
+A www.qdrop.live 76.76.21.21
 ```
 
-Redeploy Render once after those are set.
+After Render is live, keep Vercel pointing to that backend through `VITE_API_BASE_URL`.
 
 ## 4. Spotify Dashboard
 
 In the Spotify developer dashboard:
 
-1. Rotate the client secret if needed.
-2. Add this Redirect URI exactly:
+1. Keep your app credentials in Render only.
+2. Add this production Redirect URI exactly:
 
 ```text
 https://<your-render-service>.onrender.com/api/spotify/callback
 ```
 
-For local testing, also keep:
+For local testing, register this loopback redirect too:
 
 ```text
-http://localhost:5000/api/spotify/callback
+http://127.0.0.1:5000/api/spotify/callback
 ```
 
 ## 5. Local Environment
@@ -136,9 +134,9 @@ DATABASE_URL=<your local or Neon Postgres URL>
 DATABASE_SSL=true
 SPOTIFY_CLIENT_ID=<your spotify client id>
 SPOTIFY_CLIENT_SECRET=<your spotify client secret>
-SPOTIFY_REDIRECT_URI=http://localhost:5000/api/spotify/callback
-PUBLIC_APP_URL=http://localhost:5000
-CLIENT_ORIGIN=http://localhost:5000
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:5000/api/spotify/callback
+PUBLIC_APP_URL=http://127.0.0.1:5000
+CLIENT_ORIGIN=http://127.0.0.1:5000
 VITE_API_BASE_URL=
 ```
 
@@ -150,7 +148,7 @@ Use this order:
 2. `npm run build`
 3. `npm run db:push`
 4. `npm run dev`
-5. Verify `http://localhost:5000/api/health`
+5. Verify `http://127.0.0.1:5000/api/health`
 6. Deploy Render
 7. Deploy Vercel
 8. Update Spotify redirect URI

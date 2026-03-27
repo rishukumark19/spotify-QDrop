@@ -20,7 +20,7 @@ Shared music queue app for parties, gyms, offices, and any shared speaker setup.
 - Frontend can now target a separate backend with `VITE_API_BASE_URL`.
 - Backend now supports optional CORS for Vercel-to-Render deployments.
 - Spotify OAuth redirects now return to the frontend URL via `PUBLIC_APP_URL`.
-- Database config now fails fast if `DATABASE_URL` is missing and supports hosted Postgres SSL.
+- Database config supports hosted Postgres SSL and falls back to in-memory storage when `DATABASE_URL` is not set.
 
 ## Local Setup
 
@@ -53,7 +53,7 @@ npm run db:push
 npm run dev
 ```
 
-The app runs at [http://localhost:5000](http://localhost:5000).
+The app runs at [http://127.0.0.1:5000](http://127.0.0.1:5000).
 
 ## Environment Variables
 
@@ -99,7 +99,7 @@ Why this setup:
 - Render supports a long-running Node server and WebSockets.
 - Neon keeps the existing PostgreSQL + Drizzle stack intact.
 
-For the exact website-side setup steps, use [DEPLOYMENT.md](/D:/coding/projects/spotify-QDrop/DEPLOYMENT.md).
+For the exact setup steps, use [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Deploy Frontend on Vercel
 
@@ -114,6 +114,11 @@ Set these project settings:
 Set this environment variable in Vercel:
 
 - `VITE_API_BASE_URL=https://your-render-service.onrender.com`
+
+Your production frontend domain can be:
+
+- `https://qdrop.live`
+- `https://www.qdrop.live`
 
 The included `vercel.json` already sets the build command and output directory.
 
@@ -132,11 +137,11 @@ Environment variables to set in Render:
 - `NODE_ENV=production`
 - `DATABASE_URL=postgres://...`
 - `DATABASE_SSL=true`
-- `PUBLIC_APP_URL=https://your-vercel-app.vercel.app`
-- `CLIENT_ORIGIN=https://your-vercel-app.vercel.app`
-- `SPOTIFY_CLIENT_ID=...` optional
-- `SPOTIFY_CLIENT_SECRET=...` optional
-- `SPOTIFY_REDIRECT_URI=https://your-render-service.onrender.com/api/spotify/callback` optional unless Spotify playback is enabled
+- `PUBLIC_APP_URL=https://qdrop.live`
+- `CLIENT_ORIGIN=https://qdrop.live,https://www.qdrop.live`
+- `SPOTIFY_CLIENT_ID=...`
+- `SPOTIFY_CLIENT_SECRET=...`
+- `SPOTIFY_REDIRECT_URI=https://your-render-service.onrender.com/api/spotify/callback`
 
 For Spotify, add this redirect URI in the Spotify developer dashboard:
 
@@ -174,6 +179,7 @@ vercel.json      Vercel frontend config
 - Render free web services spin down after 15 minutes of inactivity.
 - Vercel Hobby is free for personal and small-scale use.
 - Guests can use the app without Spotify. The host needs Spotify credentials and a Premium account for real playback.
+- For local Spotify OAuth, use `127.0.0.1` instead of `localhost` in your registered redirect URI.
 
 ## License
 
