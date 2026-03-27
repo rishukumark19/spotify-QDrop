@@ -154,10 +154,10 @@ export default function Home() {
                   Room Name
                 </label>
                 <Input
-                  placeholder="Friday Night Jam 🎧"
+                  placeholder="e.g. Gym Beats 🏋️"
                   value={roomName}
                   onChange={(e) => setRoomName(e.target.value)}
-                  className="bg-background border-border h-14 text-foreground placeholder:text-muted-foreground/30 text-center text-sm font-medium rounded-2xl focus:ring-primary/40 focus:border-primary/60 transition-all"
+                  className="bg-black/20 border-border h-14 text-foreground placeholder:text-primary/40 text-center text-sm font-medium rounded-2xl focus:ring-primary/40 focus:border-primary/60 transition-all"
                   maxLength={50}
                   data-testid="input-room-name"
                 />
