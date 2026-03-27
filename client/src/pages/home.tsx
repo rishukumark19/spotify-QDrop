@@ -129,7 +129,7 @@ export default function Home() {
                   placeholder="KTY5R"
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                  className="bg-background border-border h-14 text-foreground placeholder:text-muted-foreground/30 text-center text-2xl tracking-[0.3em] font-mono uppercase rounded-2xl focus:ring-primary/20"
+                  className="bg-black/30 border-primary/20 h-16 text-primary placeholder:text-primary/20 text-center text-3xl tracking-[0.4em] font-mono uppercase rounded-2xl focus:ring-primary/40 focus:border-primary/60 transition-all shadow-inner shadow-primary/5"
                   maxLength={5}
                   data-testid="input-join-code"
                 />
