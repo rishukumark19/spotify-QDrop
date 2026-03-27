@@ -10,7 +10,7 @@ Whether it's a **gym, café, office, or a house party**, QDrop bridges the gap b
 
 > [!TIP]
 > **v1.3 Update: The Guest-First Overhaul!**
-> QDrop is now prioritized for joiners. The Home page defaults to **Join Room**, and guests now explicitly choose their situation: **"In the Room"** (use the shared speakers) or **"Listen Remotely"** (sync audio to their own Spotify). Hosts now manage these sessions through a collapsible **Admin Power Console**.
+> QDrop is now prioritized for joiners. The Home page defaults to **Join Room**, and guests now choose their own experience: **"In the Room"** (speaker-only) or **"Listen Remotely"** (personal Spotify sync). Hosts can now set rooms to **In-Room Speaker** or **Remote Jam** presets to simplify the setup.
 
 While Spotify Jam is great for small groups of friends with Premium accounts, QDrop is built for **venues and public spaces**.
 

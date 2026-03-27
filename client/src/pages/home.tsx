@@ -29,6 +29,7 @@ export default function Home() {
   const [roomName, setRoomName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [activeTab, setActiveTab] = useState<"join" | "create">("join");
+  const [preset, setPreset] = useState<"speaker" | "remote">("speaker");
 
   const createRoom = useMutation({
     mutationFn: async (params: { name: string; mode: string; listenAlongEnabled: boolean }) => {
@@ -82,8 +83,8 @@ export default function Home() {
         <h1 className="text-xl font-bold text-foreground tracking-tight" data-testid="text-title">
           QDrop
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Shared music queue. Scan, drop, play.
+        <p className="text-sm text-muted-foreground mt-2 max-w-[280px] mx-auto leading-relaxed">
+          Enter a room code to add songs or listen along with friends.
         </p>
       </div>
 
@@ -160,13 +161,50 @@ export default function Home() {
                   maxLength={50}
                   data-testid="input-room-name"
                 />
+
+                <div className="mt-6 flex flex-col gap-3">
+                  <label className="text-[10px] text-center font-bold text-muted-foreground uppercase tracking-[0.2em]">
+                    Room Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPreset("speaker")}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all ${
+                        preset === "speaker" 
+                          ? "bg-primary/5 border-primary text-primary" 
+                          : "bg-background border-border text-muted-foreground grayscale hover:grayscale-0"
+                      }`}
+                    >
+                      <Dumbbell className="w-5 h-5" />
+                      <span className="text-[10px] font-bold uppercase tracking-tighter">In-Room</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreset("remote")}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all ${
+                        preset === "remote" 
+                          ? "bg-primary/5 border-primary text-primary" 
+                          : "bg-background border-border text-muted-foreground grayscale hover:grayscale-0"
+                      }`}
+                    >
+                      <Headphones className="w-5 h-5" />
+                      <span className="text-[10px] font-bold uppercase tracking-tighter">Remote Jam</span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-center text-muted-foreground mt-1 px-2 italic">
+                    {preset === "speaker" 
+                      ? "Standard mode. Everyone hears the main speaker." 
+                      : "Listen Along enabled. Guests can sync to their own apps."}
+                  </p>
+                </div>
               </div>
 
               <Button
                 onClick={() => createRoom.mutate({
                   name: roomName || "My Room",
-                  mode: "listen_along", // Default to listen along enabled for new rooms
-                  listenAlongEnabled: true
+                  mode: "listen_along",
+                  listenAlongEnabled: preset === "remote"
                 })}
                 disabled={createRoom.isPending}
                 className="w-full h-14 bg-foreground text-background hover:bg-foreground/90 font-bold text-sm rounded-full transition-all hover:scale-[1.01] active:scale-[0.98]"
